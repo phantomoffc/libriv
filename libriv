@@ -3264,7 +3264,7 @@ function Library:CreateWindow(options)
 
                 -- Main browser frame
                 local BrowserFrame = Instance.new("Frame")
-                BrowserFrame.Size = UDim2.new(1, 0, 0, 340)
+                BrowserFrame.Size = UDim2.new(1, 0, 0, 480)
                 BrowserFrame.BackgroundColor3 = Theme.Container
                 BrowserFrame.Parent = Content
                 table.insert(secData.Items, {Name = "SkinBrowser", Instance = BrowserFrame})
@@ -3354,7 +3354,7 @@ function Library:CreateWindow(options)
 
                 -- Weapon scroll list
                 local WepScroll = Instance.new("ScrollingFrame")
-                WepScroll.Size = UDim2.new(1, 0, 0, 100)
+                WepScroll.Size = UDim2.new(1, 0, 0, 150)
                 WepScroll.BackgroundColor3 = Theme.Background
                 WepScroll.BorderSizePixel = 0
                 WepScroll.ScrollBarThickness = 3
@@ -3397,7 +3397,7 @@ function Library:CreateWindow(options)
 
                 -- Skin scroll list
                 local SkinScroll = Instance.new("ScrollingFrame")
-                SkinScroll.Size = UDim2.new(1, 0, 0, 80)
+                SkinScroll.Size = UDim2.new(1, 0, 0, 130)
                 SkinScroll.BackgroundColor3 = Theme.Background
                 SkinScroll.BorderSizePixel = 0
                 SkinScroll.ScrollBarThickness = 3
