@@ -3280,19 +3280,31 @@ function Library:CreateWindow(options)
                 NavBar.BorderSizePixel = 0
                 NavBar.Parent = BrowserFrame
                 Corner(NavBar, 6)
+                local NavLayout = Instance.new("UIListLayout")
+                NavLayout.FillDirection = Enum.FillDirection.Horizontal
+                NavLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+                NavLayout.Padding = UDim.new(0, 4)
+                NavLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                NavLayout.Parent = NavBar
+                local NavPad = Instance.new("UIPadding")
+                NavPad.PaddingLeft = UDim.new(0, 4)
+                NavPad.PaddingRight = UDim.new(0, 4)
+                NavPad.PaddingTop = UDim.new(0, 4)
+                NavPad.PaddingBottom = UDim.new(0, 4)
+                NavPad.Parent = NavBar
 
                 local navBtns = {}
+                local btnWidth = math.floor((1 / math.max(tabCount, 1)) * 100) / 100
                 for idx, tabName in ipairs(subTabs) do
                     local btn = Instance.new("TextButton")
-                    local w = 1 / tabCount
-                    btn.Size = UDim2.new(w, -2, 1, -6)
-                    btn.Position = UDim2.new(w * (idx - 1), 1, 0, 3)
+                    btn.Size = UDim2.new(btnWidth, -4, 1, 0)
                     btn.BackgroundColor3 = (tabName == activeTab) and Theme.Accent or Theme.Section
                     btn.Text = tabName
                     btn.TextColor3 = Theme.Text
                     btn.TextSize = 13
                     btn.Font = Config.FontBold
                     btn.AutoButtonColor = false
+                    btn.LayoutOrder = idx
                     btn.Parent = NavBar
                     Corner(btn, 5)
                     navBtns[tabName] = btn
