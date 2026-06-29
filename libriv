@@ -3755,6 +3755,7 @@ function Library:CreateWindow(options)
                 end
                 return BrowserObj
             end
+            return Section
         end
         return Tab
     end
