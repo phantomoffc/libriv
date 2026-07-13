@@ -3262,18 +3262,6 @@ function Library:CreateWindow(options)
                 local selectedSkin = nil
                 local activeTab = subTabs[1] or "Skins"
                 local tabCount = #subTabs
-                -- Forward declarations (used inside SwitchTab, defined lower down)
-                local BuildWeaponList, ClearPreview
-                local function Singular(t) return (tostring(t):gsub("s$", "")) end
-                -- weapons may be a flat array (same for every tab) or a table keyed by tab name
-                local function CurrentWeapons()
-                    if typeof(weapons) == "table" then
-                        local perTab = weapons[activeTab]
-                        if perTab ~= nil then return perTab end
-                        return weapons
-                    end
-                    return {}
-                end
 
                 local BrowserFrame = Instance.new("Frame")
                 BrowserFrame.Size = UDim2.new(1, 0, 0, 500)
@@ -3575,22 +3563,8 @@ function Library:CreateWindow(options)
                     for n, btn in pairs(navBtns) do
                         Tween(btn, {BackgroundColor3 = (n == tabName) and Theme.Accent or Theme.Section}, 0.15)
                     end
-                    selectedWeapon = nil
-                    selectedSkin = nil
-                    local word = string.upper(Singular(tabName))
-                    SkinHeader.Text = word
-                    EquipBtnR.Text = "EQUIP " .. word
-                    -- Every tab uses the same weapon/item browser page
-                    SkinsPage.Visible = true
-                    ComingSoonPage.Visible = false
-                    for _, ch in ipairs(SkinScroll:GetChildren()) do
-                        if ch:IsA("TextButton") then ch:Destroy() end
-                    end
-                    skinButtons = {}
-                    if ClearPreview then ClearPreview() end
-                    SkinNameLabel.Text = "Select a " .. string.lower(Singular(tabName))
-                    HighlightWeapon(nil)
-                    if BuildWeaponList then BuildWeaponList() end
+                    SkinsPage.Visible = (tabName == "Skins")
+                    ComingSoonPage.Visible = (tabName ~= "Skins")
                 end
                 for tName, btn in pairs(navBtns) do
                     local c = btn.MouseButton1Click:Connect(function() SwitchTab(tName) end)
@@ -3601,7 +3575,7 @@ function Library:CreateWindow(options)
                 local previewModel = nil
                 local previewAngle = 0
 
-                function ClearPreview()
+                local function ClearPreview()
                     for _, c in ipairs(WorldMdl:GetChildren()) do
                         if c ~= LightPart and c ~= LightPart2 then
                             pcall(function() c:Destroy() end)
@@ -3614,9 +3588,9 @@ function Library:CreateWindow(options)
                     ClearPreview()
                     SkinNameLabel.Text = skinName or "Select a skin"
                     if not skinName then return end
-                    local model = getModel(skinName, activeTab)
+                    local model = getModel(skinName)
                     if not model then
-                        SkinNameLabel.Text = skinName .. " (no preview)"
+                        SkinNameLabel.Text = skinName .. " (no model)"
                         return
                     end
                     local ok, clone = pcall(function() return model:Clone() end)
@@ -3664,12 +3638,12 @@ function Library:CreateWindow(options)
                 table.insert(Library.Connections, rotConn)
 
                 -- Build weapon buttons
-                function BuildWeaponList()
+                local function BuildWeaponList()
                     for _, ch in ipairs(WepScroll:GetChildren()) do
                         if ch:IsA("TextButton") then ch:Destroy() end
                     end
                     weaponButtons = {}
-                    for i, wName in ipairs(CurrentWeapons()) do
+                    for i, wName in ipairs(weapons) do
                         local btn = Instance.new("TextButton")
                         btn.Size = UDim2.new(1, 0, 0, 26)
                         btn.BackgroundColor3 = Theme.Section
@@ -3695,7 +3669,7 @@ function Library:CreateWindow(options)
                                 if ch:IsA("TextButton") then ch:Destroy() end
                             end
                             skinButtons = {}
-                            local skins = getSkins(wName, activeTab)
+                            local skins = getSkins(wName)
                             for si, sName in ipairs(skins) do
                                 local sbtn = Instance.new("TextButton")
                                 sbtn.Size = UDim2.new(1, 0, 0, 24)
@@ -3731,7 +3705,7 @@ function Library:CreateWindow(options)
                 -- Equip/Restore handlers
                 local function DoEquip()
                     if selectedWeapon and selectedSkin then
-                        local ok = onEquip(selectedWeapon, selectedSkin, activeTab)
+                        local ok = onEquip(selectedWeapon, selectedSkin)
                         if ok then
                             EquipBtnL.Text = "EQUIPPED"
                             EquipBtnR.Text = "EQUIPPED"
@@ -3747,7 +3721,7 @@ function Library:CreateWindow(options)
                 local ec1 = EquipBtnL.MouseButton1Click:Connect(DoEquip)
                 local ec2 = EquipBtnR.MouseButton1Click:Connect(DoEquip)
                 local rc1 = RestoreBtn.MouseButton1Click:Connect(function()
-                    onRestore(activeTab)
+                    onRestore()
                     RestoreBtn.Text = "RESTORED"
                     task.delay(1, function() pcall(function() RestoreBtn.Text = "RESTORE" end) end)
                 end)
