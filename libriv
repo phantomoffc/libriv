@@ -3842,15 +3842,12 @@ function Library:CreateWindow(options)
                     pBuildWeapons()
 
                     local function pDoEquip()
-                        if not pSelWeapon then return end
-                        local ok = pOnEquip(pSelWeapon, pSelItem, pInverted)
-                        if ok ~= false then
-                            EqB.Text = "EQUIPPED"
-                            EqR.Text = "EQUIPPED"
-                            task.delay(1.5, function()
-                                pcall(function() EqB.Text = pEquipText EqR.Text = pEquipText end)
-                            end)
-                        end
+                        pcall(function() pOnEquip(pSelWeapon, pSelItem, pInverted) end)
+                        EqB.Text = "EQUIPPED"
+                        EqR.Text = "EQUIPPED"
+                        task.delay(1.5, function()
+                            pcall(function() EqB.Text = pEquipText EqR.Text = pEquipText end)
+                        end)
                     end
                     local pe1 = EqB.MouseButton1Click:Connect(pDoEquip)
                     local pe2 = EqR.MouseButton1Click:Connect(pDoEquip)
