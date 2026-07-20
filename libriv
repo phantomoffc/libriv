@@ -3257,6 +3257,7 @@ function Library:CreateWindow(options)
                 local onRestore = config.onRestore or function() end
                 local getModel = config.getModel or function() return nil end
                 local subTabs = config.subTabs or {"Skins", "Wraps", "Charms", "Finishers"}
+                local tabsCfg = config.tabs or {}
                 local BrowserObj = {}
                 local selectedWeapon = nil
                 local selectedSkin = nil
@@ -3539,23 +3540,341 @@ function Library:CreateWindow(options)
                 Corner(EquipBtnR, 5)
                 RegisterTheme(EquipBtnR, "BackgroundColor")
 
-                -- === COMING SOON PAGE ===
-                local ComingSoonPage = Instance.new("Frame")
-                ComingSoonPage.Size = UDim2.new(1, 0, 1, 0)
-                ComingSoonPage.BackgroundColor3 = Theme.Section
-                ComingSoonPage.Visible = false
-                ComingSoonPage.Parent = ContentArea
-                Corner(ComingSoonPage, 6)
-                Stroke(ComingSoonPage, Theme.Stroke, 1, 0.5)
+                -- === GENERIC COSMETIC PAGES (Wraps / Charms / ...) ===
+                local cosmeticPages = {}  -- tabName -> {Frame, SetWeapons, GetSelected}
 
-                local CSLabel = Instance.new("TextLabel")
-                CSLabel.Size = UDim2.new(1, 0, 1, 0)
-                CSLabel.BackgroundTransparency = 1
-                CSLabel.Text = "Coming Soon"
-                CSLabel.TextColor3 = Theme.TextDark
-                CSLabel.TextSize = 22
-                CSLabel.Font = Config.FontBold
-                CSLabel.Parent = ComingSoonPage
+                local function BuildCosmeticPage(pTabName, tabCfg)
+                    tabCfg = tabCfg or {}
+                    local pWeapons = tabCfg.weapons or {}
+                    local pGetItems = tabCfg.getItems or function() return {} end
+                    local pGetModel = tabCfg.getModel or function() return nil end
+                    local pOnEquip = tabCfg.onEquip or function() end
+                    local pOnRestore = tabCfg.onRestore or function() end
+                    local pItemHeader = tabCfg.itemHeader or "ITEM"
+                    local pEquipText = tabCfg.equipText or "EQUIP"
+                    local pHasInverted = tabCfg.invertedToggle and true or false
+                    local pSelWeapon, pSelItem, pInverted = nil, nil, false
+
+                    local Page = Instance.new("Frame")
+                    Page.Size = UDim2.new(1, 0, 1, 0)
+                    Page.BackgroundTransparency = 1
+                    Page.Visible = false
+                    Page.Parent = ContentArea
+
+                    local LPan = Instance.new("Frame")
+                    LPan.Size = UDim2.new(0.4, -4, 1, 0)
+                    LPan.BackgroundColor3 = Theme.Section
+                    LPan.Parent = Page
+                    Corner(LPan, 6)
+                    Stroke(LPan, Theme.Stroke, 1, 0.5)
+                    local LPanList = Instance.new("UIListLayout")
+                    LPanList.Padding = UDim.new(0, 4)
+                    LPanList.SortOrder = Enum.SortOrder.LayoutOrder
+                    LPanList.Parent = LPan
+                    local LPanPad = Instance.new("UIPadding")
+                    LPanPad.PaddingLeft = UDim.new(0, 8)
+                    LPanPad.PaddingRight = UDim.new(0, 8)
+                    LPanPad.PaddingTop = UDim.new(0, 8)
+                    LPanPad.PaddingBottom = UDim.new(0, 8)
+                    LPanPad.Parent = LPan
+
+                    local function mkHeader(txt, order)
+                        local h = Instance.new("TextLabel")
+                        h.Size = UDim2.new(1, 0, 0, 16)
+                        h.BackgroundTransparency = 1
+                        h.Text = txt
+                        h.TextColor3 = Theme.TextDark
+                        h.TextSize = 12
+                        h.Font = Config.FontBold
+                        h.TextXAlignment = Enum.TextXAlignment.Left
+                        h.LayoutOrder = order
+                        h.Parent = LPan
+                    end
+                    local function mkScroll(order, height)
+                        local s = Instance.new("ScrollingFrame")
+                        s.Size = UDim2.new(1, 0, 0, height)
+                        s.BackgroundColor3 = Theme.Background
+                        s.BorderSizePixel = 0
+                        s.ScrollBarThickness = 3
+                        s.ScrollBarImageColor3 = Theme.Accent
+                        s.LayoutOrder = order
+                        s.CanvasSize = UDim2.new(0, 0, 0, 0)
+                        s.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                        s.Parent = LPan
+                        Corner(s, 5)
+                        RegisterTheme(s, "ScrollBar")
+                        local l = Instance.new("UIListLayout")
+                        l.Padding = UDim.new(0, 2)
+                        l.SortOrder = Enum.SortOrder.LayoutOrder
+                        l.Parent = s
+                        local pd = Instance.new("UIPadding")
+                        pd.PaddingLeft = UDim.new(0, 4)
+                        pd.PaddingRight = UDim.new(0, 4)
+                        pd.PaddingTop = UDim.new(0, 4)
+                        pd.Parent = s
+                        return s
+                    end
+
+                    mkHeader("WEAPON", 1)
+                    local WScroll = mkScroll(2, 150)
+                    mkHeader(pItemHeader, 3)
+                    local IScroll = mkScroll(4, pHasInverted and 118 or 140)
+
+                    if pHasInverted then
+                        local tf = Instance.new("TextButton")
+                        tf.Size = UDim2.new(1, 0, 0, 24)
+                        tf.BackgroundColor3 = Theme.Section
+                        tf.Text = "Inverted: OFF"
+                        tf.TextColor3 = Theme.Text
+                        tf.TextSize = 12
+                        tf.Font = Config.FontMain
+                        tf.AutoButtonColor = false
+                        tf.LayoutOrder = 5
+                        tf.Parent = LPan
+                        Corner(tf, 4)
+                        Stroke(tf, Theme.Stroke, 1, 0.5)
+                        local ic = tf.MouseButton1Click:Connect(function()
+                            pInverted = not pInverted
+                            tf.Text = "Inverted: " .. (pInverted and "ON" or "OFF")
+                            tf.BackgroundColor3 = pInverted and Theme.Accent or Theme.Section
+                        end)
+                        table.insert(Library.Connections, ic)
+                    end
+
+                    local ActF = Instance.new("Frame")
+                    ActF.Size = UDim2.new(1, 0, 0, 32)
+                    ActF.BackgroundTransparency = 1
+                    ActF.LayoutOrder = 6
+                    ActF.Parent = LPan
+                    local EqB = Instance.new("TextButton")
+                    EqB.Size = UDim2.new(0.5, -3, 1, 0)
+                    EqB.BackgroundColor3 = Theme.Accent
+                    EqB.Text = pEquipText
+                    EqB.TextColor3 = Theme.Text
+                    EqB.TextSize = 13
+                    EqB.Font = Config.FontBold
+                    EqB.AutoButtonColor = false
+                    EqB.Parent = ActF
+                    Corner(EqB, 5)
+                    RegisterTheme(EqB, "BackgroundColor")
+                    local RmB = Instance.new("TextButton")
+                    RmB.Size = UDim2.new(0.5, -3, 1, 0)
+                    RmB.Position = UDim2.new(0.5, 3, 0, 0)
+                    RmB.BackgroundColor3 = Theme.Section
+                    RmB.Text = "REMOVE"
+                    RmB.TextColor3 = Theme.TextDark
+                    RmB.TextSize = 13
+                    RmB.Font = Config.FontBold
+                    RmB.AutoButtonColor = false
+                    RmB.Parent = ActF
+                    Corner(RmB, 5)
+                    Stroke(RmB, Theme.Stroke, 1, 0.5)
+
+                    local RPan = Instance.new("Frame")
+                    RPan.Size = UDim2.new(0.6, -4, 1, 0)
+                    RPan.Position = UDim2.new(0.4, 4, 0, 0)
+                    RPan.BackgroundColor3 = Theme.Section
+                    RPan.Parent = Page
+                    Corner(RPan, 6)
+                    Stroke(RPan, Theme.Stroke, 1, 0.5)
+                    local VP = Instance.new("ViewportFrame")
+                    VP.Size = UDim2.new(1, -16, 1, -56)
+                    VP.Position = UDim2.new(0, 8, 0, 8)
+                    VP.BackgroundColor3 = Theme.Background
+                    VP.BorderSizePixel = 0
+                    VP.Parent = RPan
+                    Corner(VP, 6)
+                    local Cam = Instance.new("Camera")
+                    Cam.FieldOfView = 50
+                    Cam.Parent = VP
+                    VP.CurrentCamera = Cam
+                    local WM = Instance.new("WorldModel")
+                    WM.Parent = VP
+                    local L1 = Instance.new("Part")
+                    L1.Transparency = 1
+                    L1.Anchored = true
+                    L1.CanCollide = false
+                    L1.Size = Vector3.new(0.1, 0.1, 0.1)
+                    L1.Position = Vector3.new(4, 4, 4)
+                    L1.Parent = WM
+                    local PL1 = Instance.new("PointLight")
+                    PL1.Brightness = 2.5
+                    PL1.Range = 40
+                    PL1.Parent = L1
+                    local NameLbl = Instance.new("TextLabel")
+                    NameLbl.Size = UDim2.new(1, -16, 0, 20)
+                    NameLbl.Position = UDim2.new(0, 8, 1, -44)
+                    NameLbl.BackgroundTransparency = 1
+                    NameLbl.Text = "Select an item"
+                    NameLbl.TextColor3 = Theme.TextDark
+                    NameLbl.TextSize = 13
+                    NameLbl.Font = Config.FontMain
+                    NameLbl.TextXAlignment = Enum.TextXAlignment.Center
+                    NameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                    NameLbl.Parent = RPan
+                    local EqR = Instance.new("TextButton")
+                    EqR.Size = UDim2.new(1, -16, 0, 28)
+                    EqR.Position = UDim2.new(0, 8, 1, -28)
+                    EqR.BackgroundColor3 = Theme.Accent
+                    EqR.Text = pEquipText
+                    EqR.TextColor3 = Theme.Text
+                    EqR.TextSize = 13
+                    EqR.Font = Config.FontBold
+                    EqR.AutoButtonColor = false
+                    EqR.Parent = RPan
+                    Corner(EqR, 5)
+                    RegisterTheme(EqR, "BackgroundColor")
+
+                    local pPreviewModel = nil
+                    local pAngle = 0
+                    local function pClearPreview()
+                        for _, c in ipairs(WM:GetChildren()) do
+                            if c ~= L1 then pcall(function() c:Destroy() end) end
+                        end
+                        pPreviewModel = nil
+                    end
+                    local function pShowPreview(itemName)
+                        pClearPreview()
+                        NameLbl.Text = itemName or "Select an item"
+                        if not itemName then return end
+                        local model = pGetModel(itemName)
+                        if not model then NameLbl.Text = itemName .. " (no preview)" return end
+                        local ok, clone = pcall(function() return model:Clone() end)
+                        if not ok or not clone then NameLbl.Text = "Load failed" return end
+                        clone.Parent = WM
+                        pPreviewModel = clone
+                        local suc, cf, size = pcall(function() return clone:GetBoundingBox() end)
+                        if not suc then
+                            local ap = clone:FindFirstChildWhichIsA("BasePart", true)
+                            if ap then cf = ap.CFrame size = ap.Size else cf = CFrame.new() size = Vector3.new(2, 2, 2) end
+                        end
+                        local maxDim = math.max(size.X, size.Y, size.Z, 1)
+                        local dist = maxDim * 2.2
+                        Cam.CFrame = CFrame.new(cf.Position + Vector3.new(0, size.Y * 0.2, dist), cf.Position)
+                        pAngle = 0
+                        NameLbl.Text = itemName
+                    end
+                    local prc = RunService.RenderStepped:Connect(function(dt)
+                        if pPreviewModel and Page.Visible then
+                            pAngle = pAngle + dt * 0.8
+                            pcall(function()
+                                local cf, size = pPreviewModel:GetBoundingBox()
+                                local center = cf.Position
+                                local maxDim = math.max(size.X, size.Y, size.Z, 1)
+                                local dist = maxDim * 2.2
+                                Cam.CFrame = CFrame.lookAt(center + Vector3.new(math.cos(pAngle) * dist, size.Y * 0.3, math.sin(pAngle) * dist), center)
+                            end)
+                        end
+                    end)
+                    table.insert(Library.Connections, prc)
+
+                    local wButtons, iButtons = {}, {}
+                    local function pHiWeapon(name)
+                        for n, b in pairs(wButtons) do b.BackgroundColor3 = (n == name) and Theme.Accent or Theme.Section end
+                    end
+                    local function pHiItem(name)
+                        for n, b in pairs(iButtons) do b.BackgroundColor3 = (n == name) and Theme.Accent or Theme.Section end
+                    end
+                    local function pBuildItems(wName)
+                        for _, ch in ipairs(IScroll:GetChildren()) do
+                            if ch:IsA("TextButton") then ch:Destroy() end
+                        end
+                        iButtons = {}
+                        local items = pGetItems(wName)
+                        for si, iName in ipairs(items) do
+                            local ib = Instance.new("TextButton")
+                            ib.Size = UDim2.new(1, 0, 0, 24)
+                            ib.BackgroundColor3 = Theme.Section
+                            ib.Text = iName
+                            ib.TextColor3 = Theme.Text
+                            ib.TextSize = 12
+                            ib.Font = Config.FontMain
+                            ib.TextXAlignment = Enum.TextXAlignment.Left
+                            ib.AutoButtonColor = false
+                            ib.LayoutOrder = si
+                            ib.Parent = IScroll
+                            Corner(ib, 4)
+                            local ipd = Instance.new("UIPadding")
+                            ipd.PaddingLeft = UDim.new(0, 8)
+                            ipd.Parent = ib
+                            iButtons[iName] = ib
+                            local icc = ib.MouseButton1Click:Connect(function()
+                                pSelItem = iName
+                                pHiItem(iName)
+                                pShowPreview(iName)
+                            end)
+                            table.insert(Library.Connections, icc)
+                        end
+                    end
+                    local function pBuildWeapons()
+                        for _, ch in ipairs(WScroll:GetChildren()) do
+                            if ch:IsA("TextButton") then ch:Destroy() end
+                        end
+                        wButtons = {}
+                        for i, wName in ipairs(pWeapons) do
+                            local wb = Instance.new("TextButton")
+                            wb.Size = UDim2.new(1, 0, 0, 26)
+                            wb.BackgroundColor3 = Theme.Section
+                            wb.Text = wName
+                            wb.TextColor3 = Theme.Text
+                            wb.TextSize = 13
+                            wb.Font = Config.FontMain
+                            wb.TextXAlignment = Enum.TextXAlignment.Left
+                            wb.AutoButtonColor = false
+                            wb.LayoutOrder = i
+                            wb.Parent = WScroll
+                            Corner(wb, 4)
+                            local wpd = Instance.new("UIPadding")
+                            wpd.PaddingLeft = UDim.new(0, 8)
+                            wpd.Parent = wb
+                            wButtons[wName] = wb
+                            local wcc = wb.MouseButton1Click:Connect(function()
+                                pSelWeapon = wName
+                                pSelItem = nil
+                                pHiWeapon(wName)
+                                pBuildItems(wName)
+                                pClearPreview()
+                                NameLbl.Text = "Select an item"
+                            end)
+                            table.insert(Library.Connections, wcc)
+                        end
+                    end
+                    pBuildWeapons()
+
+                    local function pDoEquip()
+                        if not pSelWeapon then return end
+                        local ok = pOnEquip(pSelWeapon, pSelItem, pInverted)
+                        if ok ~= false then
+                            EqB.Text = "EQUIPPED"
+                            EqR.Text = "EQUIPPED"
+                            task.delay(1.5, function()
+                                pcall(function() EqB.Text = pEquipText EqR.Text = pEquipText end)
+                            end)
+                        end
+                    end
+                    local pe1 = EqB.MouseButton1Click:Connect(pDoEquip)
+                    local pe2 = EqR.MouseButton1Click:Connect(pDoEquip)
+                    local pr1 = RmB.MouseButton1Click:Connect(function()
+                        pOnRestore()
+                        RmB.Text = "REMOVED"
+                        task.delay(1, function() pcall(function() RmB.Text = "REMOVE" end) end)
+                    end)
+                    table.insert(Library.Connections, pe1)
+                    table.insert(Library.Connections, pe2)
+                    table.insert(Library.Connections, pr1)
+
+                    return {
+                        Frame = Page,
+                        SetWeapons = function(_, nw) pWeapons = nw or {} pBuildWeapons() end,
+                        GetSelected = function() return pSelWeapon, pSelItem, pInverted end,
+                    }
+                end
+
+                for _, pName in ipairs(subTabs) do
+                    if pName ~= "Skins" then
+                        cosmeticPages[pName] = BuildCosmeticPage(pName, tabsCfg[pName])
+                    end
+                end
 
                 -- Navigation
                 local function SwitchTab(tabName)
@@ -3564,7 +3883,9 @@ function Library:CreateWindow(options)
                         Tween(btn, {BackgroundColor3 = (n == tabName) and Theme.Accent or Theme.Section}, 0.15)
                     end
                     SkinsPage.Visible = (tabName == "Skins")
-                    ComingSoonPage.Visible = (tabName ~= "Skins")
+                    for n, pg in pairs(cosmeticPages) do
+                        pg.Frame.Visible = (n == tabName)
+                    end
                 end
                 for tName, btn in pairs(navBtns) do
                     local c = btn.MouseButton1Click:Connect(function() SwitchTab(tName) end)
@@ -3746,11 +4067,18 @@ function Library:CreateWindow(options)
                 end
                 HoverEffect(RestoreBtn, Theme.Section)
 
-                function BrowserObj:SetWeapons(newWeapons)
+                function BrowserObj:SetWeapons(newWeapons, tabName)
+                    if tabName and tabName ~= "Skins" and cosmeticPages[tabName] then
+                        cosmeticPages[tabName]:SetWeapons(newWeapons)
+                        return
+                    end
                     weapons = newWeapons
                     BuildWeaponList()
                 end
-                function BrowserObj:GetSelected()
+                function BrowserObj:GetSelected(tabName)
+                    if tabName and tabName ~= "Skins" and cosmeticPages[tabName] then
+                        return cosmeticPages[tabName].GetSelected()
+                    end
                     return selectedWeapon, selectedSkin
                 end
                 return BrowserObj
