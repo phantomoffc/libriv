@@ -3553,6 +3553,8 @@ function Library:CreateWindow(options)
                     local pItemHeader = tabCfg.itemHeader or "ITEM"
                     local pEquipText = tabCfg.equipText or "EQUIP"
                     local pHasInverted = tabCfg.invertedToggle and true or false
+                    local pNoWeapons = tabCfg.noWeapons and true or false
+                    local pGetImage = tabCfg.getImage
                     local pSelWeapon, pSelItem, pInverted = nil, nil, false
 
                     local Page = Instance.new("Frame")
@@ -3615,10 +3617,13 @@ function Library:CreateWindow(options)
                         return s
                     end
 
-                    mkHeader("WEAPON", 1)
-                    local WScroll = mkScroll(2, 150)
+                    local WScroll
+                    if not pNoWeapons then
+                        mkHeader("WEAPON", 1)
+                        WScroll = mkScroll(2, 150)
+                    end
                     mkHeader(pItemHeader, 3)
-                    local IScroll = mkScroll(4, pHasInverted and 118 or 140)
+                    local IScroll = mkScroll(4, pNoWeapons and 300 or (pHasInverted and 118 or 140))
 
                     if pHasInverted then
                         local tf = Instance.new("TextButton")
@@ -3725,6 +3730,17 @@ function Library:CreateWindow(options)
                     Corner(EqR, 5)
                     RegisterTheme(EqR, "BackgroundColor")
 
+                    local PrevImg
+                    if pGetImage then
+                        PrevImg = Instance.new("ImageLabel")
+                        PrevImg.Size = UDim2.new(1, -32, 1, -72)
+                        PrevImg.Position = UDim2.new(0, 16, 0, 16)
+                        PrevImg.BackgroundTransparency = 1
+                        PrevImg.ScaleType = Enum.ScaleType.Fit
+                        PrevImg.Image = ""
+                        PrevImg.Parent = RPan
+                    end
+
                     local pPreviewModel = nil
                     local pAngle = 0
                     local function pClearPreview()
@@ -3736,6 +3752,12 @@ function Library:CreateWindow(options)
                     local function pShowPreview(itemName)
                         pClearPreview()
                         NameLbl.Text = itemName or "Select an item"
+                        if PrevImg then
+                            local img = itemName and pGetImage(itemName) or nil
+                            PrevImg.Image = img or ""
+                            VP.Visible = not img
+                            if img then return end
+                        end
                         if not itemName then return end
                         local model = pGetModel(itemName)
                         if not model then NameLbl.Text = itemName .. " (no preview)" return end
@@ -3807,6 +3829,7 @@ function Library:CreateWindow(options)
                         end
                     end
                     local function pBuildWeapons()
+                        if not WScroll then return end
                         for _, ch in ipairs(WScroll:GetChildren()) do
                             if ch:IsA("TextButton") then ch:Destroy() end
                         end
@@ -3840,6 +3863,7 @@ function Library:CreateWindow(options)
                         end
                     end
                     pBuildWeapons()
+                    if pNoWeapons then pBuildItems(nil) end
 
                     local function pDoEquip()
                         pcall(function() pOnEquip(pSelWeapon, pSelItem, pInverted) end)
@@ -3864,6 +3888,11 @@ function Library:CreateWindow(options)
                         Frame = Page,
                         SetWeapons = function(_, nw) pWeapons = nw or {} pBuildWeapons() end,
                         GetSelected = function() return pSelWeapon, pSelItem, pInverted end,
+                        -- weaponless pages have no weapon click to build their list, and the
+                        -- items usually arrive after the menu is built, so refill on open
+                        Refresh = function()
+                            if pNoWeapons then pBuildItems(nil) end
+                        end,
                     }
                 end
 
@@ -3882,6 +3911,7 @@ function Library:CreateWindow(options)
                     SkinsPage.Visible = (tabName == "Skins")
                     for n, pg in pairs(cosmeticPages) do
                         pg.Frame.Visible = (n == tabName)
+                        if pg.Frame.Visible and pg.Refresh then pcall(pg.Refresh) end
                     end
                 end
                 for tName, btn in pairs(navBtns) do
