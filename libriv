@@ -3888,6 +3888,11 @@ function Library:CreateWindow(options)
                         Frame = Page,
                         SetWeapons = function(_, nw) pWeapons = nw or {} pBuildWeapons() end,
                         GetSelected = function() return pSelWeapon, pSelItem, pInverted end,
+                        -- weaponless pages have no weapon click to build their list, and the
+                        -- items usually arrive after the menu is built, so refill on open
+                        Refresh = function()
+                            if pNoWeapons then pBuildItems(nil) end
+                        end,
                     }
                 end
 
@@ -3906,6 +3911,7 @@ function Library:CreateWindow(options)
                     SkinsPage.Visible = (tabName == "Skins")
                     for n, pg in pairs(cosmeticPages) do
                         pg.Frame.Visible = (n == tabName)
+                        if pg.Frame.Visible and pg.Refresh then pcall(pg.Refresh) end
                     end
                 end
                 for tName, btn in pairs(navBtns) do
