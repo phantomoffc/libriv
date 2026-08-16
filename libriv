@@ -3553,9 +3553,13 @@ function Library:CreateWindow(options)
                     local pItemHeader = tabCfg.itemHeader or "ITEM"
                     local pEquipText = tabCfg.equipText or "EQUIP"
                     local pHasInverted = tabCfg.invertedToggle and true or false
+                    local pToggleText = tabCfg.toggleText or "Inverted"
+                    local pButtons = tabCfg.buttons or {}
+                    local pOnToggle = tabCfg.onToggle
                     local pNoWeapons = tabCfg.noWeapons and true or false
                     local pGetImage = tabCfg.getImage
-                    local pSelWeapon, pSelItem, pInverted = nil, nil, false
+                    local pSelWeapon, pSelItem = nil, nil
+                    local pInverted = tabCfg.toggleDefault and true or false
 
                     local Page = Instance.new("Frame")
                     Page.Size = UDim2.new(1, 0, 1, 0)
@@ -3623,33 +3627,48 @@ function Library:CreateWindow(options)
                         WScroll = mkScroll(2, 150)
                     end
                     mkHeader(pItemHeader, 3)
-                    local IScroll = mkScroll(4, pNoWeapons and 300 or (pHasInverted and 118 or 140))
+                    -- every row under the list (toggle, extra buttons) eats 26px of it
+                    local extraRows = (pHasInverted and 1 or 0) + #pButtons
+                    local IScroll = mkScroll(4, (pNoWeapons and 300 or 140) - extraRows * 26)
 
-                    if pHasInverted then
+                    local function mkRow(text, order, onClick, active)
                         local tf = Instance.new("TextButton")
                         tf.Size = UDim2.new(1, 0, 0, 24)
-                        tf.BackgroundColor3 = Theme.Section
-                        tf.Text = "Inverted: OFF"
+                        tf.BackgroundColor3 = active and Theme.Accent or Theme.Section
+                        tf.Text = text
                         tf.TextColor3 = Theme.Text
                         tf.TextSize = 12
                         tf.Font = Config.FontMain
                         tf.AutoButtonColor = false
-                        tf.LayoutOrder = 5
+                        tf.LayoutOrder = order
                         tf.Parent = LPan
                         Corner(tf, 4)
                         Stroke(tf, Theme.Stroke, 1, 0.5)
-                        local ic = tf.MouseButton1Click:Connect(function()
-                            pInverted = not pInverted
-                            tf.Text = "Inverted: " .. (pInverted and "ON" or "OFF")
-                            tf.BackgroundColor3 = pInverted and Theme.Accent or Theme.Section
-                        end)
+                        local ic = tf.MouseButton1Click:Connect(function() onClick(tf) end)
                         table.insert(Library.Connections, ic)
+                        return tf
+                    end
+
+                    if pHasInverted then
+                        mkRow(pToggleText .. ": " .. (pInverted and "ON" or "OFF"), 5, function(tf)
+                            pInverted = not pInverted
+                            tf.Text = pToggleText .. ": " .. (pInverted and "ON" or "OFF")
+                            tf.BackgroundColor3 = pInverted and Theme.Accent or Theme.Section
+                            if pOnToggle then pcall(pOnToggle, pInverted) end
+                        end, pInverted)
+                    end
+
+                    for i, btn in ipairs(pButtons) do
+                        local text = btn.text or "BUTTON"
+                        mkRow(text, 5 + i, function()
+                            if btn.callback then pcall(btn.callback, pSelWeapon, pSelItem, pInverted) end
+                        end, false)
                     end
 
                     local ActF = Instance.new("Frame")
                     ActF.Size = UDim2.new(1, 0, 0, 32)
                     ActF.BackgroundTransparency = 1
-                    ActF.LayoutOrder = 6
+                    ActF.LayoutOrder = 50
                     ActF.Parent = LPan
                     local EqB = Instance.new("TextButton")
                     EqB.Size = UDim2.new(0.5, -3, 1, 0)
