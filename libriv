@@ -4,6 +4,7 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local Stats = game:GetService("Stats")
+local MarketplaceService = game:GetService("MarketplaceService")
 local isfolder = isfolder or function() return false end
 local makefolder = makefolder or function() end
 local isfile = isfile or function() return false end
@@ -29,6 +30,8 @@ local Library = {
 }
 local Config = {
     Name = "PHANTOM HUB",
+    Brand = "Phantom Softworks",
+    Theme = "Phantom Red",
     Keybind = Enum.KeyCode.LeftControl,
     Duration = 0.3,
     FontMain = Enum.Font.GothamMedium,
@@ -46,27 +49,95 @@ local Theme = {
     TextDark = Color3.fromHex("#997373"),
     Stroke = Color3.fromHex("#2e1717"),
     Success = Color3.fromHex("#00ff88"),
-    Danger = Color3.fromHex("#ff4444")
+    Danger = Color3.fromHex("#ff4444"),
+    Topbar = Color3.fromHex("#120a0a")
 }
+local Themes = {
+    ["Phantom Red"] = {
+        Background = Color3.fromHex("#080505"),
+        Sidebar = Color3.fromHex("#0c0707"),
+        Container = Color3.fromHex("#140b0b"),
+        Section = Color3.fromHex("#1a0e0e"),
+        Accent = Color3.fromHex("#ff1a1a"),
+        Text = Color3.fromHex("#ffffff"),
+        TextDark = Color3.fromHex("#997373"),
+        Stroke = Color3.fromHex("#2e1717"),
+        Success = Color3.fromHex("#00ff88"),
+        Danger = Color3.fromHex("#ff4444"),
+        Topbar = Color3.fromHex("#120a0a")
+    },
+    ["Midnight"] = {
+        Background = Color3.fromHex("#05070c"),
+        Sidebar = Color3.fromHex("#0a0f1c"),
+        Container = Color3.fromHex("#111b30"),
+        Section = Color3.fromHex("#172342"),
+        Accent = Color3.fromHex("#2f7bff"),
+        Text = Color3.fromHex("#ffffff"),
+        TextDark = Color3.fromHex("#7d8db0"),
+        Stroke = Color3.fromHex("#22304f"),
+        Success = Color3.fromHex("#00ff88"),
+        Danger = Color3.fromHex("#ff4444"),
+        Topbar = Color3.fromHex("#0c1424")
+    },
+    ["Emerald"] = {
+        Background = Color3.fromHex("#050d08"),
+        Sidebar = Color3.fromHex("#08170e"),
+        Container = Color3.fromHex("#0e2a1b"),
+        Section = Color3.fromHex("#143a26"),
+        Accent = Color3.fromHex("#00ff9d"),
+        Text = Color3.fromHex("#ffffff"),
+        TextDark = Color3.fromHex("#71a68f"),
+        Stroke = Color3.fromHex("#1f4a33"),
+        Success = Color3.fromHex("#00ff88"),
+        Danger = Color3.fromHex("#ff4444"),
+        Topbar = Color3.fromHex("#0a1a12")
+    },
+    ["Royal Purple"] = {
+        Background = Color3.fromHex("#0a050e"),
+        Sidebar = Color3.fromHex("#150a1f"),
+        Container = Color3.fromHex("#241036"),
+        Section = Color3.fromHex("#301648"),
+        Accent = Color3.fromHex("#b04bff"),
+        Text = Color3.fromHex("#ffffff"),
+        TextDark = Color3.fromHex("#9c84b8"),
+        Stroke = Color3.fromHex("#3a2150"),
+        Success = Color3.fromHex("#00ff88"),
+        Danger = Color3.fromHex("#ff4444"),
+        Topbar = Color3.fromHex("#180c24")
+    },
+    ["Graphite"] = {
+        Background = Color3.fromHex("#0b0b0b"),
+        Sidebar = Color3.fromHex("#141414"),
+        Container = Color3.fromHex("#1e1e1e"),
+        Section = Color3.fromHex("#272727"),
+        Accent = Color3.fromHex("#e8e8e8"),
+        Text = Color3.fromHex("#ffffff"),
+        TextDark = Color3.fromHex("#8a8a8a"),
+        Stroke = Color3.fromHex("#3a3a3a"),
+        Success = Color3.fromHex("#00ff88"),
+        Danger = Color3.fromHex("#ff4444"),
+        Topbar = Color3.fromHex("#181818")
+    },
+    ["Solar"] = {
+        Background = Color3.fromHex("#0f0c05"),
+        Sidebar = Color3.fromHex("#1a1408"),
+        Container = Color3.fromHex("#2a2010"),
+        Section = Color3.fromHex("#3a2c15"),
+        Accent = Color3.fromHex("#ffb020"),
+        Text = Color3.fromHex("#ffffff"),
+        TextDark = Color3.fromHex("#b8a06a"),
+        Stroke = Color3.fromHex("#4a3a1c"),
+        Success = Color3.fromHex("#00ff88"),
+        Danger = Color3.fromHex("#ff4444"),
+        Topbar = Color3.fromHex("#221a0a")
+    }
+}
+local ThemeKeys = {"Background","Sidebar","Container","Section","Accent","Text","TextDark","Stroke","Success","Danger","Topbar"}
 local ThemeRegistry = {}
 setmetatable(ThemeRegistry, { __mode = "k" })
 local function RegisterTheme(instance, propType)
     ThemeRegistry[instance] = propType
     return instance
-end
-function Library:UpdateTheme(newColor)
-    Theme.Accent = newColor
-    for instance, propType in pairs(ThemeRegistry) do
-        if instance and instance.Parent then
-            if propType == "TextColor" then instance.TextColor3 = newColor
-            elseif propType == "BackgroundColor" then instance.BackgroundColor3 = newColor
-            elseif propType == "BorderColor" then
-                if instance:IsA("UIStroke") then instance.Color = newColor else instance.BorderColor3 = newColor end
-            elseif propType == "ImageColor" then instance.ImageColor3 = newColor
-            elseif propType == "ScrollBar" then instance.ScrollBarImageColor3 = newColor
-            end
-        end
-    end
 end
 local function GetParent()
     if CoreGui then return CoreGui end
@@ -74,7 +145,7 @@ local function GetParent()
 end
 local function Tween(obj, props, time, style, dir)
     time = time or Config.Duration
-    style = style or Enum.EasingStyle.Quart
+    style = style or Enum.EasingStyle.Quint
     dir = dir or Enum.EasingDirection.Out
     local t = TweenService:Create(obj, TweenInfo.new(time, style, dir), props)
     t:Play()
@@ -94,6 +165,102 @@ local function Stroke(parent, color, thickness, transparency)
     s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     s.Parent = parent
     return s
+end
+local ThemeScreens = {}
+local function CollectThemeScreens()
+    table.clear(ThemeScreens)
+    if Library.ScreenGui then table.insert(ThemeScreens, Library.ScreenGui) end
+    if Library.KeybindList then table.insert(ThemeScreens, Library.KeybindList.Screen) end
+    for _, g in pairs(GetParent():GetChildren()) do
+        if g.Name == "PhantomMiniButton" or g.Name == "PhantomTooltip" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" then
+            table.insert(ThemeScreens, g)
+        end
+    end
+end
+local function RepaintColor(oldColor, newColor)
+    if oldColor == newColor then return end
+    CollectThemeScreens()
+    for _, scr in ipairs(ThemeScreens) do
+        if not (scr and scr.Parent) then continue end
+        for _, inst in pairs(scr:GetDescendants()) do
+            if inst:IsA("GuiObject") then
+                if inst.BackgroundColor3 == oldColor then inst.BackgroundColor3 = newColor end
+                if inst.BorderColor3 == oldColor then inst.BorderColor3 = newColor end
+            end
+            if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+                if inst.TextColor3 == oldColor then inst.TextColor3 = newColor end
+            end
+            if (inst:IsA("ImageLabel") or inst:IsA("ImageButton")) and inst.ImageColor3 == oldColor then inst.ImageColor3 = newColor end
+            if inst:IsA("UIStroke") and inst.Color == oldColor then inst.Color = newColor end
+            if inst:IsA("ScrollingFrame") and inst.ScrollBarImageColor3 == oldColor then inst.ScrollBarImageColor3 = newColor end
+        end
+    end
+end
+function Library:SetTheme(name)
+    local palette = Themes[name]
+    if not palette then return false end
+    for _, key in ipairs(ThemeKeys) do
+        local old = Theme[key]
+        local new = palette[key]
+        if old and new then RepaintColor(old, new) end
+    end
+    for k, v in pairs(palette) do Theme[k] = v end
+    Library:Notify("Theme", "Theme set to " .. name, 2)
+    return true
+end
+function Library:UpdateTheme(newColor)
+    RepaintColor(Theme.Accent, newColor)
+    Theme.Accent = newColor
+    for instance, propType in pairs(ThemeRegistry) do
+        if instance and instance.Parent then
+            if propType == "TextColor" then instance.TextColor3 = newColor
+            elseif propType == "BackgroundColor" then instance.BackgroundColor3 = newColor
+            elseif propType == "BorderColor" then
+                if instance:IsA("UIStroke") then instance.Color = newColor else instance.BorderColor3 = newColor end
+            elseif propType == "ImageColor" then instance.ImageColor3 = newColor
+            elseif propType == "ScrollBar" then instance.ScrollBarImageColor3 = newColor
+            end
+        end
+    end
+end
+Library.HubConfig = {
+    Name = "Phantom Softworks",
+    Game = "",
+    Socials = {
+        Discord = "https://discord.gg/RvXDcYHYdt",
+        YouTube = "https://www.youtube.com/watch?v=K9EhYXEqIYc",
+    },
+    UpdateLog = {
+        Date = "Aug 20, 2026",
+         Added = {
+            "Rewrote Whole UI",
+            "Info tab with Change Log and My social links",
+            "New 6 Themes, can be found in Settings",
+        },
+        Fixed = {
+            "Ui bugs for Mobile Users",
+        },
+    },
+}
+function Library:SetHub(config)
+    if type(config) == "table" then
+        for k, v in pairs(config) do
+            if type(v) == "table" and type(Library.HubConfig[k]) == "table" then
+                for kk, vv in pairs(v) do Library.HubConfig[k][kk] = vv end
+            else
+                Library.HubConfig[k] = v
+            end
+        end
+    end
+end
+local function CopyLink(link, name)
+    if not link or link == "" then return end
+    local ok = pcall(function() setclipboard(link) end)
+    if ok then
+        Library:Notify("Link", (name or "Link") .. " link copied to clipboard!", 2)
+    else
+        Library:Notify(name or "Link", link, 6)
+    end
 end
 local function RoundToIncrement(value, increment)
     if increment <= 0 then return value end
@@ -228,6 +395,7 @@ end
 local IgnoredFlags = {
     ConfigSelectorFlag = true,
     MenuAccentColor = true,
+    SelectedTheme = true,
     KeybindListToggle = true,
 }
 local function SerializeConfigValue(v)
@@ -496,7 +664,7 @@ function Library:InitWatermark()
                 ping = s:match("%d+") or "0"
             end)
             local timeStr = os.date("%H:%M:%S")
-            local text = string.format(" <font color='#%s'>%s</font> | FPS: %d | Ping: %sms | %s ", Theme.Accent:ToHex(), Config.Name, fps, ping, timeStr)
+            local text = string.format(" <font color='#%s'>%s</font> | FPS: %d | Ping: %sms | %s ", Theme.Accent:ToHex(), Config.Brand, fps, ping, timeStr)
             Label.Text = text
             local bounds = Label.TextBounds.X + 20
             Tween(Frame, {Size = UDim2.new(0, bounds, 0, 26)}, 0.1)
@@ -964,6 +1132,7 @@ end
 function Library:CreateWindow(options)
     if options and options.Name then Config.Name = options.Name end
     if options and options.ConfigFolder then Config.ConfigFolder = options.ConfigFolder end
+    if options and options.Game then Library.HubConfig.Game = options.Game end
     if not isfolder(Config.ConfigFolder) then makefolder(Config.ConfigFolder) end
     Library:Unload()
     Library:InitWatermark()
@@ -997,17 +1166,13 @@ function Library:CreateWindow(options)
     MakeDraggable(MiniButton, MiniButton, function(wasDrag)
         miniWasDragged = wasDrag
     end)
-    local c1 = MiniButton.MouseButton1Click:Connect(function()
-        if miniWasDragged then
-            miniWasDragged = false
-            return
-        end
+    local function ToggleFromMini()
         if Library.Open then
             Library.Open = false
             if Library._IsSettings then
-                Tween(Library._SetScale, {Scale = GetBaseScale() * 0.8}, 0.2).Completed:Wait()
+                Tween(Library._SetScale, {Scale = GetBaseScale() * 0.8}, 0.25).Completed:Wait()
             else
-                Tween(Library._MainScale, {Scale = GetBaseScale() * 0.8}, 0.2).Completed:Wait()
+                Tween(Library._MainScale, {Scale = GetBaseScale() * 0.8}, 0.25).Completed:Wait()
             end
             Library._MainWindow.Visible = false
             Library._SettingsWindow.Visible = false
@@ -1018,14 +1183,21 @@ function Library:CreateWindow(options)
                 Library._SettingsWindow.Visible = true
                 Library._SettingsWindow.BackgroundTransparency = 0.1
                 Library._SetScale.Scale = GetBaseScale() * 0.8
-                Tween(Library._SetScale, {Scale = GetBaseScale()}, 0.3)
+                Tween(Library._SetScale, {Scale = GetBaseScale()}, 0.35)
             else
                 Library._MainWindow.Visible = true
                 Library._MainWindow.BackgroundTransparency = 0.1
                 Library._MainScale.Scale = GetBaseScale() * 0.8
-                Tween(Library._MainScale, {Scale = GetBaseScale()}, 0.3)
+                Tween(Library._MainScale, {Scale = GetBaseScale()}, 0.35)
             end
         end
+    end
+    local c1 = MiniButton.MouseButton1Click:Connect(function()
+        if miniWasDragged then
+            miniWasDragged = false
+            return
+        end
+        ToggleFromMini()
     end)
     table.insert(Library.Connections, c1)
     local function CreateBaseFrame(name)
@@ -1067,6 +1239,65 @@ function Library:CreateWindow(options)
         MakeDraggable(DragHeader, Frame)
         return Frame, Scale
     end
+    local GameName = Library.HubConfig.Game
+    if GameName == "" then
+        GameName = game.Name
+        pcall(function()
+            local info = MarketplaceService:GetProductInfo(game.PlaceId)
+            if info and info.Name and info.Name ~= "" then GameName = info.Name end
+        end)
+    end
+    local function CreateTopbar(parent, isSettings)
+        local TopBar = Instance.new("Frame")
+        TopBar.Name = "TopBar"
+        TopBar.Size = UDim2.new(1, 0, 0, 34)
+        TopBar.BackgroundColor3 = Theme.Topbar
+        TopBar.BorderSizePixel = 0
+        TopBar.Parent = parent
+        TopBar.ZIndex = 3
+        local TopAccent = Instance.new("Frame")
+        TopAccent.Size = UDim2.new(1, 0, 0, 2)
+        TopAccent.Position = UDim2.new(0, 0, 1, 0)
+        TopAccent.BackgroundColor3 = Theme.Accent
+        TopAccent.BorderSizePixel = 0
+        TopAccent.Parent = TopBar
+        RegisterTheme(TopAccent, "BackgroundColor")
+        local TopTitle = Instance.new("TextLabel")
+        TopTitle.Size = UDim2.new(1, -96, 1, 0)
+        TopTitle.Position = UDim2.new(0, 12, 0, 0)
+        TopTitle.BackgroundTransparency = 1
+        TopTitle.Text = Config.Brand
+        TopTitle.TextColor3 = Theme.Text
+        TopTitle.Font = Config.FontBold
+        TopTitle.TextSize = 14
+        TopTitle.TextXAlignment = Enum.TextXAlignment.Left
+        TopTitle.Parent = TopBar
+        local function TopBtn(id, hoverColor, xOffset)
+            local b = Instance.new("ImageButton")
+            b.Size = UDim2.new(0, 22, 0, 22)
+            b.AnchorPoint = Vector2.new(1, 0.5)
+            b.Position = UDim2.new(1, xOffset, 0.5, 0)
+            b.BackgroundTransparency = 1
+            b.Image = "rbxassetid://" .. id
+            b.ImageColor3 = Theme.TextDark
+            b.ScaleType = Enum.ScaleType.Fit
+            b.AutoButtonColor = false
+            b.Parent = TopBar
+            local c1 = b.MouseEnter:Connect(function() Tween(b, {ImageColor3 = hoverColor}, 0.1) end)
+            local c2 = b.MouseLeave:Connect(function() Tween(b, {ImageColor3 = Theme.TextDark}, 0.1) end)
+            table.insert(Library.Connections, c1)
+            table.insert(Library.Connections, c2)
+            return b
+        end
+        local CloseBtn = TopBtn(10738425363, Theme.Danger, -8)
+        local MinBtn = TopBtn(10664064072, Theme.Accent, -36)
+        local cc = CloseBtn.MouseButton1Click:Connect(function() Library:Unload() end)
+        local mc = MinBtn.MouseButton1Click:Connect(function() ToggleFromMini() end)
+        table.insert(Library.Connections, cc)
+        table.insert(Library.Connections, mc)
+        MakeDraggable(TopBar, parent)
+        return TopBar
+    end
     local MainWindow, MainScale = CreateBaseFrame("MainWindow")
     local SettingsWindow, SetScale = CreateBaseFrame("SettingsWindow")
     Library._MainWindow = MainWindow
@@ -1074,6 +1305,8 @@ function Library:CreateWindow(options)
     Library._SettingsWindow = SettingsWindow
     Library._SetScale = SetScale
     Library._IsSettings = false
+    CreateTopbar(MainWindow, false)
+    CreateTopbar(SettingsWindow, true)
     local Resizer = Instance.new("Frame")
     Resizer.Size = UDim2.new(0, 20, 0, 20)
     Resizer.Position = UDim2.new(1, 0, 1, 0)
@@ -1100,7 +1333,8 @@ function Library:CreateWindow(options)
     MakeResizable(Resizer, MainWindow, Vector2.new(450, 300))
     local function CreateSidebar(parent, isSettings)
         local Bar = Instance.new("Frame")
-        Bar.Size = UDim2.new(0, 180, 1, 0)
+        Bar.Size = UDim2.new(0, 180, 1, -34)
+        Bar.Position = UDim2.new(0, 0, 0, 34)
         Bar.BackgroundColor3 = Theme.Sidebar
         Bar.BorderSizePixel = 0
         Bar.Parent = parent
@@ -1142,7 +1376,7 @@ function Library:CreateWindow(options)
             return Bar, nil, BackBtn
         else
             local Logo = Instance.new("TextLabel")
-            Logo.Text = Config.Name
+            Logo.Text = GameName
             Logo.RichText = true
             Logo.Position = UDim2.new(0, 15, 0, 20)
             Logo.Size = UDim2.new(1, -30, 0, 30)
@@ -1242,18 +1476,18 @@ function Library:CreateWindow(options)
                 SettingsWindow.Visible = true
                 SettingsWindow.BackgroundTransparency = 0.1
                 SetScale.Scale = GetBaseScale() * 0.8
-                Tween(SetScale, {Scale = GetBaseScale()}, 0.3).Completed:Wait()
+                Tween(SetScale, {Scale = GetBaseScale()}, 0.35).Completed:Wait()
             else
                 MainWindow.Visible = true
                 MainWindow.BackgroundTransparency = 0.1
                 MainScale.Scale = GetBaseScale() * 0.8
-                Tween(MainScale, {Scale = GetBaseScale()}, 0.3).Completed:Wait()
+                Tween(MainScale, {Scale = GetBaseScale()}, 0.35).Completed:Wait()
             end
         else
             if IsSettings then
-                Tween(SetScale, {Scale = GetBaseScale() * 0.8}, 0.2).Completed:Wait()
+                Tween(SetScale, {Scale = GetBaseScale() * 0.8}, 0.25).Completed:Wait()
             else
-                Tween(MainScale, {Scale = GetBaseScale() * 0.8}, 0.2).Completed:Wait()
+                Tween(MainScale, {Scale = GetBaseScale() * 0.8}, 0.25).Completed:Wait()
             end
             MainWindow.Visible = false
             SettingsWindow.Visible = false
@@ -1266,12 +1500,12 @@ function Library:CreateWindow(options)
         animating = true
         SettingsWindow.Position = MainWindow.Position
         SettingsWindow.Size = MainWindow.Size
-        Tween(MainScale, {Scale = GetBaseScale() * 0.9}, 0.15).Completed:Wait()
+        Tween(MainScale, {Scale = GetBaseScale() * 0.9}, 0.2).Completed:Wait()
         MainWindow.Visible = false
         SettingsWindow.Visible = true
         SettingsWindow.BackgroundTransparency = 0.1
         SetScale.Scale = GetBaseScale() * 0.9
-        Tween(SetScale, {Scale = GetBaseScale()}, 0.2).Completed:Wait()
+        Tween(SetScale, {Scale = GetBaseScale()}, 0.25).Completed:Wait()
         IsSettings = true
         Library._IsSettings = true
         animating = false
@@ -1281,12 +1515,12 @@ function Library:CreateWindow(options)
         animating = true
         MainWindow.Position = SettingsWindow.Position
         MainWindow.Size = SettingsWindow.Size
-        Tween(SetScale, {Scale = GetBaseScale() * 0.9}, 0.15).Completed:Wait()
+        Tween(SetScale, {Scale = GetBaseScale() * 0.9}, 0.2).Completed:Wait()
         SettingsWindow.Visible = false
         MainWindow.Visible = true
         MainWindow.BackgroundTransparency = 0.1
         MainScale.Scale = GetBaseScale() * 0.9
-        Tween(MainScale, {Scale = GetBaseScale()}, 0.2).Completed:Wait()
+        Tween(MainScale, {Scale = GetBaseScale()}, 0.25).Completed:Wait()
         IsSettings = false
         Library._IsSettings = false
         animating = false
@@ -1313,8 +1547,8 @@ function Library:CreateWindow(options)
     table.insert(Library.Connections, MenuBindConnection)
     local WindowObj = {}
     local MainPages = Instance.new("Frame")
-    MainPages.Size = UDim2.new(1, -181, 1, 0)
-    MainPages.Position = UDim2.new(0, 181, 0, 0)
+    MainPages.Size = UDim2.new(1, -181, 1, -34)
+    MainPages.Position = UDim2.new(0, 181, 0, 34)
     MainPages.BackgroundTransparency = 1
     MainPages.Parent = MainWindow
     function WindowObj:CreateRawSection(text, parent)
@@ -1812,8 +2046,8 @@ function Library:CreateWindow(options)
     end
     local function PopulateSettings()
         local SetPage = Instance.new("ScrollingFrame")
-        SetPage.Size = UDim2.new(1, -200, 1, -20)
-        SetPage.Position = UDim2.new(0, 190, 0, 10)
+        SetPage.Size = UDim2.new(1, -200, 1, -54)
+        SetPage.Position = UDim2.new(0, 190, 0, 44)
         SetPage.BackgroundTransparency = 1
         SetPage.ScrollBarThickness = 2
         SetPage.ScrollBarImageColor3 = Theme.Accent
@@ -1854,6 +2088,9 @@ function Library:CreateWindow(options)
         end)
         MenuSec:ColorPicker("Accent Color", "MenuAccentColor", Theme.Accent, "Change the theme color", function(col)
             Library:UpdateTheme(col)
+        end)
+        MenuSec:Dropdown("Theme", "SelectedTheme", {"Phantom Red", "Midnight", "Emerald", "Royal Purple", "Graphite", "Solar"}, "Phantom Red", "Switch the whole UI theme", function(name)
+            Library:SetTheme(name)
         end)
         local ConfigSec = WindowObj:CreateRawSection("Configuration", SetPage)
         local ConfigContent = ConfigSec.Container:FindFirstChild("Content")
@@ -2432,6 +2669,43 @@ function Library:CreateWindow(options)
                 function LabelObj:Set(newText) Lbl.Text = tostring(newText) end
                 function LabelObj:SetColor(newColor) Lbl.TextColor3 = newColor end
                 return LabelObj
+            end
+            function Section:Bullet(ltext, col)
+                local Frame = Instance.new("Frame")
+                Frame.Size = UDim2.new(1, 0, 0, 26)
+                Frame.BackgroundColor3 = Theme.Container
+                Frame.BackgroundTransparency = 0.5
+                Frame.Parent = Content
+                table.insert(secData.Items, {Name = ltext, Instance = Frame})
+                Corner(Frame, 4)
+                Stroke(Frame, Theme.Stroke, 1, 0.5)
+                local Dot = Instance.new("Frame")
+                Dot.Size = UDim2.new(0, 6, 0, 6)
+                Dot.Position = UDim2.new(0, 10, 0, 9)
+                Dot.AnchorPoint = Vector2.new(0, 0)
+                Dot.BackgroundColor3 = (col == "added" and Theme.Success) or (col == "fixed" and Theme.Accent) or Theme.TextDark
+                Dot.BorderSizePixel = 0
+                Dot.Parent = Frame
+                Corner(Dot, 3)
+                local Lbl = Instance.new("TextLabel")
+                Lbl.Size = UDim2.new(1, -26, 1, -10)
+                Lbl.Position = UDim2.new(0, 22, 0, 5)
+                Lbl.BackgroundTransparency = 1
+                Lbl.Text = tostring(ltext)
+                Lbl.Font = Config.FontMain
+                Lbl.TextSize = 12
+                Lbl.TextColor3 = Theme.Text
+                Lbl.TextXAlignment = Enum.TextXAlignment.Left
+                Lbl.TextYAlignment = Enum.TextYAlignment.Top
+                Lbl.TextWrapped = true
+                Lbl.Parent = Frame
+                local function UpdateHeight()
+                    local textHeight = Lbl.TextBounds.Y
+                    if textHeight > 16 then Frame.Size = UDim2.new(1, 0, 0, textHeight + 10) else Frame.Size = UDim2.new(1, 0, 0, 26) end
+                end
+                local boundsConn = Lbl:GetPropertyChangedSignal("TextBounds"):Connect(UpdateHeight)
+                table.insert(Library.Connections, boundsConn)
+                UpdateHeight()
             end
             function Section:Toggle(text, flag, default, tooltipText, callback)
                 Library.Defaults[flag] = default or false
@@ -4129,6 +4403,25 @@ function Library:CreateWindow(options)
     task.defer(function()
         Library:LoadConfig("_autosave")
     end)
+    local InfoTab = WindowObj:Tab("Info", "112964043447417")
+    local AboutSec = InfoTab:Section("Phantom Softworks")
+    AboutSec:Label(string.format("Welcome to <font color='#%s'>%s</font>. Join our community and stay up to date with the latest updates.", Theme.Accent:ToHex(), Library.HubConfig.Name))
+    AboutSec:Button("Discord", "Copy the Discord link", function() CopyLink(Library.HubConfig.Socials.Discord, "Discord") end)
+    AboutSec:Button("YouTube", "Copy the YouTube link", function() CopyLink(Library.HubConfig.Socials.YouTube, "YouTube") end)
+    AboutSec:Label(string.format("Game: <font color='#%s'>%s</font>", Theme.Accent:ToHex(), GameName))
+    local UpdSec = InfoTab:Section("Updates", "Right")
+    UpdSec:Label("Latest changelog:")
+    if Library.HubConfig.UpdateLog.Date and Library.HubConfig.UpdateLog.Date ~= "" then
+        UpdSec:Label(string.format("Date: <font color='#%s'>%s</font>", Theme.Accent:ToHex(), Library.HubConfig.UpdateLog.Date))
+    end
+    if #Library.HubConfig.UpdateLog.Added > 0 then
+        UpdSec:Label("Added:", { Color = Theme.Success })
+        for _, v in ipairs(Library.HubConfig.UpdateLog.Added) do UpdSec:Bullet("- " .. v, "added") end
+    end
+    if #Library.HubConfig.UpdateLog.Fixed > 0 then
+        UpdSec:Label("Fixed:", { Color = Theme.Accent })
+        for _, v in ipairs(Library.HubConfig.UpdateLog.Fixed) do UpdSec:Bullet("- " .. v, "fixed") end
+    end
     MainScale.Scale = GetBaseScale()
     MainWindow.Visible = true
     return WindowObj
