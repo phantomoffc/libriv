@@ -25,7 +25,10 @@ local Library = {
     Connections = {},
     Elements = {},
     Unsaved = false,
-    AutoSaveEnabled = true
+    AutoSaveEnabled = true,
+    Backgrounds = {},
+    BackgroundImage = "",
+    BackgroundTransparency = 0.5
 }
 local Config = {
     Name = "PHANTOM HUB",
@@ -65,6 +68,24 @@ function Library:UpdateTheme(newColor)
             elseif propType == "ImageColor" then instance.ImageColor3 = newColor
             elseif propType == "ScrollBar" then instance.ScrollBarImageColor3 = newColor
             end
+        end
+    end
+end
+function Library:SetBackground(image, transparency)
+    if image ~= nil then
+        if type(image) == "number" then image = "rbxassetid://" .. image end
+        image = tostring(image)
+        if image ~= "" and not string.find(image, "://") then image = "rbxassetid://" .. image end
+        Library.BackgroundImage = image
+    end
+    if transparency ~= nil then
+        Library.BackgroundTransparency = math.clamp(tonumber(transparency) or 0.5, 0, 1)
+    end
+    for _, img in ipairs(Library.Backgrounds) do
+        if img and img.Parent then
+            img.Image = Library.BackgroundImage
+            img.ImageTransparency = Library.BackgroundTransparency
+            img.Visible = Library.BackgroundImage ~= ""
         end
     end
 end
@@ -202,6 +223,7 @@ end
 function Library:Unload()
     for _, conn in ipairs(Library.Connections) do pcall(function() conn:Disconnect() end) end
     Library.Connections = {}
+    Library.Backgrounds = {}
     if Library.ScreenGui then pcall(function() Library.ScreenGui:Destroy() end) Library.ScreenGui = nil end
     if Library.KeybindList then pcall(function() Library.KeybindList.Screen:Destroy() end) Library.KeybindList = nil end
     for _, g in pairs(GetParent():GetChildren()) do
@@ -1056,6 +1078,25 @@ function Library:CreateWindow(options)
         BgNoise.TileSize = UDim2.new(0, 100, 0, 100)
         BgNoise.Parent = Frame
         Corner(BgNoise, 6)
+        local BgClip = Instance.new("Frame")
+        BgClip.Name = "BgClip"
+        BgClip.Size = UDim2.new(1, 0, 1, 0)
+        BgClip.BackgroundTransparency = 1
+        BgClip.ClipsDescendants = true
+        BgClip.ZIndex = 0
+        BgClip.Parent = Frame
+        Corner(BgClip, 6)
+        local BgCustom = Instance.new("ImageLabel")
+        BgCustom.Name = "BgCustom"
+        BgCustom.Size = UDim2.new(1, 0, 1, 0)
+        BgCustom.BackgroundTransparency = 1
+        BgCustom.Image = Library.BackgroundImage
+        BgCustom.ImageTransparency = Library.BackgroundTransparency
+        BgCustom.ScaleType = Enum.ScaleType.Crop
+        BgCustom.Visible = Library.BackgroundImage ~= ""
+        BgCustom.ZIndex = 0
+        BgCustom.Parent = BgClip
+        table.insert(Library.Backgrounds, BgCustom)
         local DragHeader = Instance.new("Frame")
         DragHeader.Name = "DragHeader"
         DragHeader.Size = UDim2.new(0, 180, 0, 60)
@@ -1854,6 +1895,12 @@ function Library:CreateWindow(options)
         end)
         MenuSec:ColorPicker("Accent Color", "MenuAccentColor", Theme.Accent, "Change the theme color", function(col)
             Library:UpdateTheme(col)
+        end)
+        MenuSec:TextBox("Background Image", "MenuBackground", "rbxassetid:// or id", "Custom menu background, empty to reset", function(val)
+            Library:SetBackground(val or "")
+        end)
+        MenuSec:Slider("Background Opacity", "MenuBackgroundOpacity", 0, 100, 50, 1, "How visible the background image is", function(val)
+            Library:SetBackground(nil, 1 - (val / 100))
         end)
         local ConfigSec = WindowObj:CreateRawSection("Configuration", SetPage)
         local ConfigContent = ConfigSec.Container:FindFirstChild("Content")
