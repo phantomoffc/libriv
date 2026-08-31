@@ -1206,6 +1206,31 @@ local function CreateSliderElement(text, flag, min, max, default, increment, too
     task.spawn(callback, val)
     return Frame
 end
+local function MakeSearchGlyph(parent, diameter, xOffset)
+    local Holder = Instance.new("Frame")
+    Holder.Size = UDim2.new(0, diameter + 4, 0, diameter + 4)
+    Holder.Position = UDim2.new(0, xOffset, 0.5, 0)
+    Holder.AnchorPoint = Vector2.new(0, 0.5)
+    Holder.BackgroundTransparency = 1
+    Holder.ZIndex = parent.ZIndex + 1
+    Holder.Parent = parent
+    local Ring = Instance.new("Frame")
+    Ring.Size = UDim2.new(0, diameter, 0, diameter)
+    Ring.BackgroundTransparency = 1
+    Ring.ZIndex = Holder.ZIndex
+    Ring.Parent = Holder
+    Corner(Ring, math.floor(diameter / 2))
+    Stroke(Ring, Theme.TextDark, 1.5, 0)
+    local Handle = Instance.new("Frame")
+    Handle.Size = UDim2.new(0, 1.5, 0, math.max(diameter * 0.5, 3))
+    Handle.Position = UDim2.new(0, diameter - 1, 0, diameter - 1)
+    Handle.Rotation = -45
+    Handle.BackgroundColor3 = Theme.TextDark
+    Handle.BorderSizePixel = 0
+    Handle.ZIndex = Holder.ZIndex
+    Handle.Parent = Holder
+    return Holder
+end
 local function CreateListSearch(parent, placeholder, order, onChanged)
     local Box = Instance.new("Frame")
     Box.Size = UDim2.new(1, 0, 0, 22)
@@ -1214,15 +1239,7 @@ local function CreateListSearch(parent, placeholder, order, onChanged)
     Box.Parent = parent
     Corner(Box, 4)
     Stroke(Box, Theme.Stroke, 1, 0.5)
-    local Icon = Instance.new("TextLabel")
-    Icon.Size = UDim2.new(0, 14, 1, 0)
-    Icon.Position = UDim2.new(0, 5, 0, 0)
-    Icon.BackgroundTransparency = 1
-    Icon.Text = "⌕"
-    Icon.TextColor3 = Theme.TextDark
-    Icon.Font = Config.FontBold
-    Icon.TextSize = 14
-    Icon.Parent = Box
+    MakeSearchGlyph(Box, 9, 6)
     local Input = Instance.new("TextBox")
     Input.Size = UDim2.new(1, -26, 1, 0)
     Input.Position = UDim2.new(0, 22, 0, 0)
@@ -1253,7 +1270,7 @@ local function FilterButtons(buttons, query)
     end
 end
 local function CreatePreviewController(VP, Cam)
-    local ctrl = {Angle = 0, Pitch = 0.25, Zoom = 1, TargetZoom = 1, Model = nil, Dragging = false}
+    local ctrl = {Angle = 0, Pitch = 0.25, Zoom = 1, TargetZoom = 1, Model = nil, Dragging = false, ScrollFrame = nil}
     local dragStart, startAngle, startPitch = nil, 0, 0
     local ZoomBox = Instance.new("Frame")
     ZoomBox.Size = UDim2.new(0, 24, 0, 52)
@@ -1292,13 +1309,22 @@ local function CreatePreviewController(VP, Cam)
         local ap, sz = VP.AbsolutePosition, VP.AbsoluteSize
         return m.X >= ap.X and m.X <= ap.X + sz.X and m.Y >= ap.Y and m.Y <= ap.Y + sz.Y + 36
     end
+    local function LockScroll(state)
+        local sf = ctrl.ScrollFrame
+        if sf and sf.Parent then sf.ScrollingEnabled = not state end
+    end
     local ib = VP.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             ctrl.Dragging = true
             dragStart = input.Position
             startAngle, startPitch = ctrl.Angle, ctrl.Pitch
+            LockScroll(true)
         end
     end)
+    local ime = VP.MouseEnter:Connect(function() LockScroll(true) end)
+    local iml = VP.MouseLeave:Connect(function() if not ctrl.Dragging then LockScroll(false) end end)
+    table.insert(Library.Connections, ime)
+    table.insert(Library.Connections, iml)
     local ic = UserInputService.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseWheel then
             if VP.Visible and InsideVP() then
@@ -1306,14 +1332,15 @@ local function CreatePreviewController(VP, Cam)
             end
         elseif ctrl.Dragging and dragStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local d = input.Position - dragStart
-            ctrl.Angle = startAngle - d.X * 0.01
-            ctrl.Pitch = math.clamp(startPitch + d.Y * 0.006, -1.1, 1.1)
+            ctrl.Angle = startAngle + d.X * 0.01
+            ctrl.Pitch = math.clamp(startPitch - d.Y * 0.006, -1.1, 1.1)
         end
     end)
     local ie = UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             ctrl.Dragging = false
             dragStart = nil
+            LockScroll(false)
         end
     end)
     table.insert(Library.Connections, ib)
@@ -1766,7 +1793,7 @@ function Library:CreateWindow(options)
     MainPages.Parent = MainWindow
     local SearchBar = Instance.new("Frame")
     SearchBar.Name = "SearchBar"
-    SearchBar.Size = UDim2.new(1, -201, 0, 24)
+    SearchBar.Size = UDim2.new(1, -263, 0, 24)
     SearchBar.Position = UDim2.new(0, 191, 0, 8)
     SearchBar.BackgroundColor3 = Theme.Container
     SearchBar.BackgroundTransparency = 0.3
@@ -1774,16 +1801,7 @@ function Library:CreateWindow(options)
     SearchBar.ZIndex = 5
     Corner(SearchBar, 4)
     Stroke(SearchBar, Theme.Stroke, 1, 0.4)
-    local SearchIcon = Instance.new("TextLabel")
-    SearchIcon.Size = UDim2.new(0, 16, 1, 0)
-    SearchIcon.Position = UDim2.new(0, 6, 0, 0)
-    SearchIcon.BackgroundTransparency = 1
-    SearchIcon.Text = "⌕"
-    SearchIcon.TextColor3 = Theme.TextDark
-    SearchIcon.Font = Config.FontBold
-    SearchIcon.TextSize = 16
-    SearchIcon.ZIndex = 6
-    SearchIcon.Parent = SearchBar
+    MakeSearchGlyph(SearchBar, 10, 7)
     local SearchInput = Instance.new("TextBox")
     SearchInput.Size = UDim2.new(1, -30, 1, 0)
     SearchInput.Position = UDim2.new(0, 24, 0, 0)
@@ -1799,7 +1817,7 @@ function Library:CreateWindow(options)
     SearchInput.ZIndex = 6
     SearchInput.Parent = SearchBar
     local SearchResults = Instance.new("ScrollingFrame")
-    SearchResults.Size = UDim2.new(1, -201, 0, 0)
+    SearchResults.Size = UDim2.new(1, -263, 0, 0)
     SearchResults.Position = UDim2.new(0, 191, 0, 34)
     SearchResults.BackgroundColor3 = Theme.Section
     SearchResults.BackgroundTransparency = 0.05
@@ -1887,7 +1905,7 @@ function Library:CreateWindow(options)
         query = tostring(query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
         if #query < 2 then
             SearchResults.Visible = false
-            SearchResults.Size = UDim2.new(1, -201, 0, 0)
+            SearchResults.Size = UDim2.new(1, -263, 0, 0)
             return
         end
         local count = 0
@@ -1919,7 +1937,7 @@ function Library:CreateWindow(options)
         end
         SearchResults.Visible = true
         local h = math.min(count * 26 + 6, 220)
-        SearchResults.Size = UDim2.new(1, -201, 0, h)
+        SearchResults.Size = UDim2.new(1, -263, 0, h)
         SearchResults.CanvasSize = UDim2.new(0, 0, 0, count * 26 + 6)
     end
     local sc1 = SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
@@ -3215,7 +3233,7 @@ function Library:CreateWindow(options)
                 ToggleObj.KeybindValue = bindKey
                 ToggleObj.KeybindMode = bindMode
                 local KeyBtn = Instance.new("TextButton")
-                KeyBtn.Size = UDim2.new(0, 58, 0, 18)
+                KeyBtn.Size = UDim2.new(0, 60, 0, 20)
                 KeyBtn.Position = UDim2.new(1, -34, 0.5, 0)
                 KeyBtn.AnchorPoint = Vector2.new(1, 0.5)
                 KeyBtn.BackgroundColor3 = Theme.Background
@@ -3227,21 +3245,25 @@ function Library:CreateWindow(options)
                 KeyBtn.AutoButtonColor = false
                 KeyBtn.Parent = Btn
                 Corner(KeyBtn, 4)
+                local KeyStroke = Stroke(KeyBtn, Theme.Stroke, 1, 0.2)
                 local binding = false
                 local function RefreshKeyBtn()
                     if binding then return end
                     if touchOnly then
                         KeyBtn.Text = pinned and "PINNED" or "PIN"
-                        KeyBtn.BackgroundTransparency = pinned and 0.2 or 0.6
-                        KeyBtn.TextColor3 = pinned and Theme.Text or Theme.TextDark
+                        KeyBtn.BackgroundTransparency = 0.1
+                        KeyBtn.TextColor3 = pinned and Theme.Accent or Theme.TextDark
+                        KeyStroke.Color = pinned and Theme.Accent or Theme.Stroke
                     elseif bindKey ~= Enum.KeyCode.Unknown then
-                        KeyBtn.Text = "[" .. bindKey.Name .. "]"
-                        KeyBtn.BackgroundTransparency = 0.4
-                        KeyBtn.TextColor3 = toggled and Theme.Accent or Theme.TextDark
+                        KeyBtn.Text = bindKey.Name
+                        KeyBtn.BackgroundTransparency = 0.1
+                        KeyBtn.TextColor3 = toggled and Theme.Accent or Theme.Text
+                        KeyStroke.Color = toggled and Theme.Accent or Theme.Stroke
                     else
-                        KeyBtn.Text = "[ + ]"
-                        KeyBtn.BackgroundTransparency = 1
-                        KeyBtn.TextColor3 = Theme.Stroke
+                        KeyBtn.Text = "BIND"
+                        KeyBtn.BackgroundTransparency = 0.35
+                        KeyBtn.TextColor3 = Theme.TextDark
+                        KeyStroke.Color = Theme.Stroke
                     end
                 end
                 ToggleObj.RefreshKeyBtn = RefreshKeyBtn
@@ -3274,9 +3296,10 @@ function Library:CreateWindow(options)
                     end
                     if binding then return end
                     binding = true
-                    KeyBtn.Text = "[...]"
-                    KeyBtn.BackgroundTransparency = 0.2
+                    KeyBtn.Text = "PRESS.."
+                    KeyBtn.BackgroundTransparency = 0
                     KeyBtn.TextColor3 = Theme.Accent
+                    KeyStroke.Color = Theme.Accent
                     local conn
                     conn = UserInputService.InputBegan:Connect(function(input)
                         if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
@@ -4015,6 +4038,7 @@ function Library:CreateWindow(options)
                 local activeTab = subTabs[1] or "Skins"
                 local tabCount = #subTabs
 
+                local TabScroll = Page
                 local BrowserFrame = Instance.new("Frame")
                 BrowserFrame.Size = UDim2.new(1, 0, 0, 500)
                 BrowserFrame.BackgroundColor3 = Theme.Container
@@ -4249,6 +4273,7 @@ function Library:CreateWindow(options)
                 local WorldMdl = Instance.new("WorldModel")
                 WorldMdl.Parent = VPFrame
                 local SkinCtrl = CreatePreviewController(VPFrame, VPCam)
+                SkinCtrl.ScrollFrame = TabScroll
 
                 local LightPart = Instance.new("Part")
                 LightPart.Transparency = 1
@@ -4458,6 +4483,7 @@ function Library:CreateWindow(options)
                     local WM = Instance.new("WorldModel")
                     WM.Parent = VP
                     local pCtrl = CreatePreviewController(VP, Cam)
+                    pCtrl.ScrollFrame = TabScroll
                     local L1 = Instance.new("Part")
                     L1.Transparency = 1
                     L1.Anchored = true
@@ -4656,6 +4682,18 @@ function Library:CreateWindow(options)
 
                     return {
                         Frame = Page,
+                        ApplyHeight = function(contentH)
+                            local invH = pHasInverted and 28 or 0
+                            if pNoWeapons then
+                                local space = contentH - (16 + 16 + 22 + 32 + 12 + invH)
+                                IScroll.Size = UDim2.new(1, 0, 0, math.max(space, 120))
+                            else
+                                local space = math.max(contentH - (16 + 76 + 32 + 24 + invH), 160)
+                                local wh = math.floor(space * 0.5)
+                                WScroll.Size = UDim2.new(1, 0, 0, wh)
+                                IScroll.Size = UDim2.new(1, 0, 0, space - wh)
+                            end
+                        end,
                         SetWeapons = function(_, nw) pWeapons = nw or {} pBuildWeapons() end,
                         GetSelected = function() return pSelWeapon, pSelItem, pInverted end,
                         -- weaponless pages have no weapon click to build their list, and the
@@ -4671,6 +4709,28 @@ function Library:CreateWindow(options)
                         cosmeticPages[pName] = BuildCosmeticPage(pName, tabsCfg[pName])
                     end
                 end
+
+                -- the browser is the tallest element in the library: size it to the page so
+                -- EQUIP is always on screen instead of forcing the user to resize the window
+                local function ApplyBrowserHeight()
+                    local sc = (Library._MainScale and Library._MainScale.Scale > 0) and Library._MainScale.Scale or 1
+                    local avail = TabScroll.AbsoluteSize.Y
+                    if avail < 1 then return end
+                    local h = math.clamp(math.floor(avail / sc) - 40, 300, 760)
+                    BrowserFrame.Size = UDim2.new(1, 0, 0, h)
+                    local contentH = h - 54
+                    local space = math.max(contentH - 148, 140)
+                    local wh = math.floor(space * 0.52)
+                    WepScroll.Size = UDim2.new(1, 0, 0, wh)
+                    SkinScroll.Size = UDim2.new(1, 0, 0, space - wh)
+                    for _, pg in pairs(cosmeticPages) do
+                        if pg.ApplyHeight then pcall(pg.ApplyHeight, contentH) end
+                    end
+                end
+                ApplyBrowserHeight()
+                local abh = TabScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(ApplyBrowserHeight)
+                table.insert(Library.Connections, abh)
+                task.defer(ApplyBrowserHeight)
 
                 -- Navigation
                 local function SwitchTab(tabName)
