@@ -22,6 +22,9 @@ local Library = {
     Open = true,
     KeybindList = nil,
     ShowKeybinds = true,
+    Binds = {},
+    BindOrder = {},
+    SearchIndex = {},
     ScreenGui = nil,
     Connections = {},
     Elements = {},
@@ -358,8 +361,8 @@ end
 local function GetBaseScale()
     local vp = workspace.CurrentCamera.ViewportSize
     if vp.X < 1 or vp.Y < 1 then return 1 end
-    local scaleX = vp.X / 800
-    local scaleY = vp.Y / 500
+    local scaleX = vp.X / 950
+    local scaleY = vp.Y / 560
     local scale = math.min(scaleX, scaleY)
     if scale < 1 then
         return math.clamp(scale * 0.95, 0.4, 1)
@@ -371,6 +374,9 @@ function Library:Unload()
     Library.Connections = {}
     if Library.ScreenGui then pcall(function() Library.ScreenGui:Destroy() end) Library.ScreenGui = nil end
     if Library.KeybindList then pcall(function() Library.KeybindList.Screen:Destroy() end) Library.KeybindList = nil end
+    Library.Binds = {}
+    Library.BindOrder = {}
+    Library.SearchIndex = {}
     for _, g in pairs(GetParent():GetChildren()) do
         if g.Name == "PrismaMini" or g.Name == Config.Name or g.Name == "PrismaKeybinds" or g.Name == "PrismaLoader" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" or g.Name == "PhantomTooltip" or g.Name == "PhantomMiniButton" then
             pcall(function() g:Destroy() end)
@@ -678,8 +684,9 @@ function Library:CreateKeybindList()
     Screen.Name = "PrismaKeybinds"
     Screen.Parent = GetParent()
     Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    local listWidth = (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) and 200 or 180
     local Frame = Instance.new("Frame")
-    Frame.Size = UDim2.new(0, 180, 0, 30)
+    Frame.Size = UDim2.new(0, listWidth, 0, 30)
     Frame.Position = UDim2.new(0.01, 0, 0.4, 0)
     Frame.BackgroundColor3 = Theme.Background
     Frame.BackgroundTransparency = 0.1
@@ -721,56 +728,126 @@ function Library:CreateKeybindList()
     List.SortOrder = Enum.SortOrder.LayoutOrder
     List.Parent = Container
     local c1 = List:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        Frame.Size = UDim2.new(0, 180, 0, List.AbsoluteContentSize.Y + 30)
+        Frame.Size = UDim2.new(0, listWidth, 0, List.AbsoluteContentSize.Y + 30)
     end)
     table.insert(Library.Connections, c1)
-    Library.KeybindList = {Frame = Frame, Container = Container, Screen = Screen}
+    Library.KeybindList = {Frame = Frame, Container = Container, Screen = Screen, Title = Title}
     Frame.Visible = false
 end
-function Library:UpdateKeybindList(name, key, active, mode)
-    if not Library.KeybindList then Library:CreateKeybindList() end
-    local existing = Library.KeybindList.Container:FindFirstChild(name)
-    if active and key ~= "None" and key ~= "Unknown" and mode ~= "Always" then
-        if not existing then
-            local Item = Instance.new("Frame")
-            Item.Name = name
-            Item.Size = UDim2.new(1, 0, 0, 20)
-            Item.BackgroundTransparency = 1
-            Item.Parent = Library.KeybindList.Container
-            local LName = Instance.new("TextLabel")
-            LName.Name = "LName"
-            LName.Size = UDim2.new(0.6, 0, 1, 0)
-            LName.Position = UDim2.new(0, 5, 0, 0)
-            LName.BackgroundTransparency = 1
-            LName.Text = name
-            LName.TextColor3 = Theme.Text
-            LName.Font = Config.FontMain
-            LName.TextSize = 12
-            LName.TextXAlignment = Enum.TextXAlignment.Left
-            LName.Parent = Item
-            local LKey = Instance.new("TextLabel")
-            LKey.Name = "LKey"
-            LKey.Size = UDim2.new(0.4, -5, 1, 0)
-            LKey.Position = UDim2.new(0.6, 0, 0, 0)
-            LKey.BackgroundTransparency = 1
-            LKey.Text = "[" .. tostring(key) .. "]"
-            LKey.TextColor3 = Theme.TextDark
-            LKey.Font = Config.FontMain
-            LKey.TextSize = 12
-            LKey.TextXAlignment = Enum.TextXAlignment.Right
-            LKey.Parent = Item
-        else
-            local lkey = existing:FindFirstChild("LKey")
-            if lkey then lkey.Text = "[" .. tostring(key) .. "]" end
+local function IsTouchOnly()
+    return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end
+local function BindHasKey(key)
+    return key ~= nil and key ~= "None" and key ~= "Unknown" and key ~= ""
+end
+local function BindIsListed(entry)
+    if IsTouchOnly() then
+        return entry.Toggle ~= nil and entry.Pinned == true
+    end
+    return BindHasKey(entry.Key) and entry.Mode ~= "Always"
+end
+local function RefreshBindList()
+    if not Library.KeybindList then return end
+    local shown = 0
+    for _, name in ipairs(Library.BindOrder) do
+        local entry = Library.Binds[name]
+        if entry and entry.Row then
+            local listed = BindIsListed(entry)
+            entry.Row.Visible = listed
+            if listed then
+                shown = shown + 1
+                entry.Row.LayoutOrder = shown
+                local color = entry.Active and Theme.Accent or Theme.TextDark
+                entry.Dot.BackgroundColor3 = color
+                entry.NameLabel.TextColor3 = entry.Active and Theme.Text or Theme.TextDark
+                entry.KeyLabel.Text = BindHasKey(entry.Key) and ("[" .. tostring(entry.Key) .. "]") or (entry.Toggle and (entry.Active and "ON" or "OFF") or "")
+                entry.KeyLabel.TextColor3 = color
+            end
         end
-    else
-        if existing then existing:Destroy() end
     end
-    if Library.ShowKeybinds then
-        Library.KeybindList.Frame.Visible = (#Library.KeybindList.Container:GetChildren() > 1)
-    else
-        Library.KeybindList.Frame.Visible = false
+    Library.KeybindList.Title.Text = IsTouchOnly() and "Quick Toggles" or "Keybinds"
+    Library.KeybindList.Frame.Visible = Library.ShowKeybinds and shown > 0
+end
+Library.RefreshBindList = function() RefreshBindList() end
+local function CreateBindRow(name, entry)
+    local Row = Instance.new("TextButton")
+    Row.Name = name
+    Row.Size = UDim2.new(1, -8, 0, IsTouchOnly() and 30 or 22)
+    Row.Position = UDim2.new(0, 4, 0, 0)
+    Row.BackgroundColor3 = Theme.Container
+    Row.BackgroundTransparency = 1
+    Row.AutoButtonColor = false
+    Row.Text = ""
+    Row.Visible = false
+    Row.Parent = Library.KeybindList.Container
+    Corner(Row, 4)
+    local Dot = Instance.new("Frame")
+    Dot.Size = UDim2.new(0, 8, 0, 8)
+    Dot.Position = UDim2.new(0, 6, 0.5, 0)
+    Dot.AnchorPoint = Vector2.new(0, 0.5)
+    Dot.BackgroundColor3 = Theme.TextDark
+    Dot.BorderSizePixel = 0
+    Dot.Parent = Row
+    Corner(Dot, 4)
+    local LName = Instance.new("TextLabel")
+    LName.Size = UDim2.new(1, -70, 1, 0)
+    LName.Position = UDim2.new(0, 20, 0, 0)
+    LName.BackgroundTransparency = 1
+    LName.Text = name
+    LName.TextColor3 = Theme.TextDark
+    LName.Font = Config.FontMain
+    LName.TextSize = 12
+    LName.TextXAlignment = Enum.TextXAlignment.Left
+    LName.TextTruncate = Enum.TextTruncate.AtEnd
+    LName.Parent = Row
+    local LKey = Instance.new("TextLabel")
+    LKey.Size = UDim2.new(0, 46, 1, 0)
+    LKey.Position = UDim2.new(1, -6, 0, 0)
+    LKey.AnchorPoint = Vector2.new(1, 0)
+    LKey.BackgroundTransparency = 1
+    LKey.Text = ""
+    LKey.TextColor3 = Theme.TextDark
+    LKey.Font = Config.FontMain
+    LKey.TextSize = 12
+    LKey.TextXAlignment = Enum.TextXAlignment.Right
+    LKey.Parent = Row
+    entry.Row = Row
+    entry.Dot = Dot
+    entry.NameLabel = LName
+    entry.KeyLabel = LKey
+    local rc1 = Row.MouseButton1Click:Connect(function()
+        if entry.Toggle then entry.Toggle() end
+    end)
+    local rc2 = Row.MouseEnter:Connect(function()
+        if entry.Toggle then Tween(Row, {BackgroundTransparency = 0.6}, 0.12) end
+    end)
+    local rc3 = Row.MouseLeave:Connect(function()
+        Tween(Row, {BackgroundTransparency = 1}, 0.12)
+    end)
+    table.insert(Library.Connections, rc1)
+    table.insert(Library.Connections, rc2)
+    table.insert(Library.Connections, rc3)
+end
+function Library:RegisterBind(name, data)
+    if not Library.KeybindList then Library:CreateKeybindList() end
+    local entry = Library.Binds[name]
+    if not entry then
+        entry = {Key = "Unknown", Mode = "Toggle", Active = false}
+        Library.Binds[name] = entry
+        table.insert(Library.BindOrder, name)
+        CreateBindRow(name, entry)
     end
+    if data then
+        if data.Key ~= nil then entry.Key = data.Key end
+        if data.Mode ~= nil then entry.Mode = data.Mode end
+        if data.Active ~= nil then entry.Active = data.Active end
+        if data.Pinned ~= nil then entry.Pinned = data.Pinned end
+        if data.Toggle ~= nil then entry.Toggle = data.Toggle end
+    end
+    RefreshBindList()
+end
+function Library:UpdateKeybindList(name, key, active, mode)
+    Library:RegisterBind(name, {Key = key, Active = active, Mode = mode})
 end
 local function CreateDropdownElement(text, flag, options, default, tooltipText, callback, parentFrame, sectionRef, isMulti, customParent)
     local selected = Library.Flags[flag]
@@ -1129,6 +1206,142 @@ local function CreateSliderElement(text, flag, min, max, default, increment, too
     task.spawn(callback, val)
     return Frame
 end
+local function CreateListSearch(parent, placeholder, order, onChanged)
+    local Box = Instance.new("Frame")
+    Box.Size = UDim2.new(1, 0, 0, 22)
+    Box.BackgroundColor3 = Theme.Background
+    Box.LayoutOrder = order
+    Box.Parent = parent
+    Corner(Box, 4)
+    Stroke(Box, Theme.Stroke, 1, 0.5)
+    local Icon = Instance.new("TextLabel")
+    Icon.Size = UDim2.new(0, 14, 1, 0)
+    Icon.Position = UDim2.new(0, 5, 0, 0)
+    Icon.BackgroundTransparency = 1
+    Icon.Text = "⌕"
+    Icon.TextColor3 = Theme.TextDark
+    Icon.Font = Config.FontBold
+    Icon.TextSize = 14
+    Icon.Parent = Box
+    local Input = Instance.new("TextBox")
+    Input.Size = UDim2.new(1, -26, 1, 0)
+    Input.Position = UDim2.new(0, 22, 0, 0)
+    Input.BackgroundTransparency = 1
+    Input.Text = ""
+    Input.PlaceholderText = placeholder
+    Input.PlaceholderColor3 = Theme.TextDark
+    Input.TextColor3 = Theme.Text
+    Input.Font = Config.FontMain
+    Input.TextSize = 12
+    Input.TextXAlignment = Enum.TextXAlignment.Left
+    Input.ClearTextOnFocus = false
+    Input.Parent = Box
+    local c = Input:GetPropertyChangedSignal("Text"):Connect(function()
+        onChanged((Input.Text or ""):lower())
+    end)
+    table.insert(Library.Connections, c)
+    return Box
+end
+local function FilterButtons(buttons, query)
+    for name, btn in pairs(buttons) do
+        if not btn or not btn.Parent then
+        elseif query == "" then
+            btn.Visible = true
+        else
+            btn.Visible = tostring(name):lower():find(query, 1, true) ~= nil
+        end
+    end
+end
+local function CreatePreviewController(VP, Cam)
+    local ctrl = {Angle = 0, Pitch = 0.25, Zoom = 1, TargetZoom = 1, Model = nil, Dragging = false}
+    local dragStart, startAngle, startPitch = nil, 0, 0
+    local ZoomBox = Instance.new("Frame")
+    ZoomBox.Size = UDim2.new(0, 24, 0, 52)
+    ZoomBox.Position = UDim2.new(1, -6, 1, -6)
+    ZoomBox.AnchorPoint = Vector2.new(1, 1)
+    ZoomBox.BackgroundTransparency = 1
+    ZoomBox.ZIndex = 5
+    ZoomBox.Parent = VP
+    local ZoomList = Instance.new("UIListLayout")
+    ZoomList.Padding = UDim.new(0, 4)
+    ZoomList.Parent = ZoomBox
+    local function MakeZoomBtn(txt, order, delta)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(0, 24, 0, 24)
+        b.BackgroundColor3 = Theme.Background
+        b.BackgroundTransparency = 0.25
+        b.Text = txt
+        b.TextColor3 = Theme.Text
+        b.TextSize = 16
+        b.Font = Config.FontBold
+        b.AutoButtonColor = false
+        b.LayoutOrder = order
+        b.ZIndex = 6
+        b.Parent = ZoomBox
+        Corner(b, 4)
+        Stroke(b, Theme.Stroke, 1, 0.4)
+        local c = b.MouseButton1Click:Connect(function()
+            ctrl.TargetZoom = math.clamp(ctrl.TargetZoom + delta, 0.4, 3)
+        end)
+        table.insert(Library.Connections, c)
+    end
+    MakeZoomBtn("+", 1, -0.25)
+    MakeZoomBtn("-", 2, 0.25)
+    local function InsideVP()
+        local m = UserInputService:GetMouseLocation()
+        local ap, sz = VP.AbsolutePosition, VP.AbsoluteSize
+        return m.X >= ap.X and m.X <= ap.X + sz.X and m.Y >= ap.Y and m.Y <= ap.Y + sz.Y + 36
+    end
+    local ib = VP.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            ctrl.Dragging = true
+            dragStart = input.Position
+            startAngle, startPitch = ctrl.Angle, ctrl.Pitch
+        end
+    end)
+    local ic = UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            if VP.Visible and InsideVP() then
+                ctrl.TargetZoom = math.clamp(ctrl.TargetZoom - input.Position.Z * 0.15, 0.4, 3)
+            end
+        elseif ctrl.Dragging and dragStart and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragStart
+            ctrl.Angle = startAngle - d.X * 0.01
+            ctrl.Pitch = math.clamp(startPitch + d.Y * 0.006, -1.1, 1.1)
+        end
+    end)
+    local ie = UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            ctrl.Dragging = false
+            dragStart = nil
+        end
+    end)
+    table.insert(Library.Connections, ib)
+    table.insert(Library.Connections, ic)
+    table.insert(Library.Connections, ie)
+    function ctrl:Reset()
+        ctrl.Zoom = 1
+        ctrl.TargetZoom = 1
+        ctrl.Pitch = 0.25
+        ctrl.Angle = 0
+    end
+    function ctrl:Step(dt)
+        local model = ctrl.Model
+        if not model or not model.Parent then return end
+        if not ctrl.Dragging then ctrl.Angle = ctrl.Angle + dt * 0.6 end
+        ctrl.Zoom = ctrl.Zoom + (ctrl.TargetZoom - ctrl.Zoom) * math.min(dt * 8, 1)
+        pcall(function()
+            local cf, size = model:GetBoundingBox()
+            local center = cf.Position
+            local maxDim = math.max(size.X, size.Y, size.Z, 1)
+            local dist = maxDim * 2.2 * ctrl.Zoom
+            local cp = math.cos(ctrl.Pitch)
+            local camPos = center + Vector3.new(math.cos(ctrl.Angle) * dist * cp, math.sin(ctrl.Pitch) * dist + size.Y * 0.1, math.sin(ctrl.Angle) * dist * cp)
+            Cam.CFrame = CFrame.lookAt(camPos, center)
+        end)
+    end
+    return ctrl
+end
 function Library:CreateWindow(options)
     if options and options.Name then Config.Name = options.Name end
     if options and options.ConfigFolder then Config.ConfigFolder = options.ConfigFolder end
@@ -1203,7 +1416,7 @@ function Library:CreateWindow(options)
     local function CreateBaseFrame(name)
         local Frame = Instance.new("Frame")
         Frame.Name = name
-        Frame.Size = UDim2.new(0, 650, 0, 400)
+        Frame.Size = UDim2.new(0, 780, 0, 450)
         Frame.Position = UDim2.new(0.5, 0, 0.5, 0)
         Frame.AnchorPoint = Vector2.new(0.5, 0.5)
         Frame.BackgroundColor3 = Theme.Background
@@ -1215,7 +1428,7 @@ function Library:CreateWindow(options)
         Frame.Active = true
         local SizeConstraint = Instance.new("UISizeConstraint")
         SizeConstraint.MaxSize = Vector2.new(1400, 900)
-        SizeConstraint.MinSize = Vector2.new(450, 300)
+        SizeConstraint.MinSize = Vector2.new(520, 320)
         SizeConstraint.Parent = Frame
         Corner(Frame, 6)
         Stroke(Frame, Theme.Stroke, 1, 0)
@@ -1551,6 +1764,174 @@ function Library:CreateWindow(options)
     MainPages.Position = UDim2.new(0, 181, 0, 34)
     MainPages.BackgroundTransparency = 1
     MainPages.Parent = MainWindow
+    local SearchBar = Instance.new("Frame")
+    SearchBar.Name = "SearchBar"
+    SearchBar.Size = UDim2.new(1, -201, 0, 24)
+    SearchBar.Position = UDim2.new(0, 191, 0, 8)
+    SearchBar.BackgroundColor3 = Theme.Container
+    SearchBar.BackgroundTransparency = 0.3
+    SearchBar.Parent = MainWindow
+    SearchBar.ZIndex = 5
+    Corner(SearchBar, 4)
+    Stroke(SearchBar, Theme.Stroke, 1, 0.4)
+    local SearchIcon = Instance.new("TextLabel")
+    SearchIcon.Size = UDim2.new(0, 16, 1, 0)
+    SearchIcon.Position = UDim2.new(0, 6, 0, 0)
+    SearchIcon.BackgroundTransparency = 1
+    SearchIcon.Text = "⌕"
+    SearchIcon.TextColor3 = Theme.TextDark
+    SearchIcon.Font = Config.FontBold
+    SearchIcon.TextSize = 16
+    SearchIcon.ZIndex = 6
+    SearchIcon.Parent = SearchBar
+    local SearchInput = Instance.new("TextBox")
+    SearchInput.Size = UDim2.new(1, -30, 1, 0)
+    SearchInput.Position = UDim2.new(0, 24, 0, 0)
+    SearchInput.BackgroundTransparency = 1
+    SearchInput.Text = ""
+    SearchInput.PlaceholderText = "Search features..."
+    SearchInput.PlaceholderColor3 = Theme.TextDark
+    SearchInput.TextColor3 = Theme.Text
+    SearchInput.Font = Config.FontMain
+    SearchInput.TextSize = 12
+    SearchInput.TextXAlignment = Enum.TextXAlignment.Left
+    SearchInput.ClearTextOnFocus = false
+    SearchInput.ZIndex = 6
+    SearchInput.Parent = SearchBar
+    local SearchResults = Instance.new("ScrollingFrame")
+    SearchResults.Size = UDim2.new(1, -201, 0, 0)
+    SearchResults.Position = UDim2.new(0, 191, 0, 34)
+    SearchResults.BackgroundColor3 = Theme.Section
+    SearchResults.BackgroundTransparency = 0.05
+    SearchResults.BorderSizePixel = 0
+    SearchResults.ScrollBarThickness = 2
+    SearchResults.ScrollBarImageColor3 = Theme.Accent
+    SearchResults.CanvasSize = UDim2.new(0, 0, 0, 0)
+    SearchResults.Visible = false
+    SearchResults.ZIndex = 30
+    SearchResults.Parent = MainWindow
+    Corner(SearchResults, 4)
+    Stroke(SearchResults, Theme.Stroke, 1, 0.2)
+    RegisterTheme(SearchResults, "ScrollBar")
+    local ResultsList = Instance.new("UIListLayout")
+    ResultsList.SortOrder = Enum.SortOrder.LayoutOrder
+    ResultsList.Padding = UDim.new(0, 2)
+    ResultsList.Parent = SearchResults
+    local function HighlightItem(inst)
+        if not inst or not inst.Parent then return end
+        local flash = Instance.new("UIStroke")
+        flash.Color = Theme.Accent
+        flash.Thickness = 2
+        flash.Transparency = 0
+        flash.Parent = inst
+        task.delay(0.15, function()
+            local t = TweenService:Create(flash, TweenInfo.new(1.2), {Transparency = 1})
+            t:Play()
+            t.Completed:Connect(function() pcall(function() flash:Destroy() end) end)
+        end)
+    end
+    local function GoToResult(entry, inst)
+        if entry.Activate then entry.Activate() end
+        task.defer(function()
+            if not inst or not inst.Parent then return end
+            local page = entry.Page
+            if page then
+                RunService.RenderStepped:Wait()
+                local rel = inst.AbsolutePosition.Y - page.AbsolutePosition.Y + page.CanvasPosition.Y
+                local scale = GetBaseScale()
+                if scale > 0 then rel = rel / scale end
+                Tween(page, {CanvasPosition = Vector2.new(0, math.max(rel - 12, 0))}, 0.25)
+            end
+            HighlightItem(inst)
+        end)
+    end
+    local function ClearResults()
+        for _, c in pairs(SearchResults:GetChildren()) do
+            if c:IsA("TextButton") then c:Destroy() end
+        end
+    end
+    local function AddResultRow(tabName, itemName, order, onClick)
+        local Row = Instance.new("TextButton")
+        Row.Size = UDim2.new(1, -8, 0, 24)
+        Row.Position = UDim2.new(0, 4, 0, 0)
+        Row.BackgroundColor3 = Theme.Container
+        Row.BackgroundTransparency = 1
+        Row.AutoButtonColor = false
+        Row.Text = ""
+        Row.LayoutOrder = order
+        Row.ZIndex = 31
+        Row.Parent = SearchResults
+        Corner(Row, 4)
+        local Lbl = Instance.new("TextLabel")
+        Lbl.Size = UDim2.new(1, -12, 1, 0)
+        Lbl.Position = UDim2.new(0, 8, 0, 0)
+        Lbl.BackgroundTransparency = 1
+        Lbl.RichText = true
+        Lbl.Text = '<font color="#8a8a8a">' .. tabName .. ' →</font> ' .. itemName
+        Lbl.TextColor3 = Theme.Text
+        Lbl.Font = Config.FontMain
+        Lbl.TextSize = 12
+        Lbl.TextXAlignment = Enum.TextXAlignment.Left
+        Lbl.TextTruncate = Enum.TextTruncate.AtEnd
+        Lbl.ZIndex = 32
+        Lbl.Parent = Row
+        Row.MouseEnter:Connect(function() Tween(Row, {BackgroundTransparency = 0.5}, 0.12) end)
+        Row.MouseLeave:Connect(function() Tween(Row, {BackgroundTransparency = 1}, 0.12) end)
+        Row.MouseButton1Click:Connect(function()
+            SearchInput.Text = ""
+            onClick()
+        end)
+    end
+    local function RunSearch(query)
+        ClearResults()
+        query = tostring(query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if #query < 2 then
+            SearchResults.Visible = false
+            SearchResults.Size = UDim2.new(1, -201, 0, 0)
+            return
+        end
+        local count = 0
+        for _, entry in ipairs(Library.SearchIndex) do
+            if count < 40 and entry.Tab:lower():find(query, 1, true) then
+                count = count + 1
+                AddResultRow(entry.Tab, "open tab", count, function() entry.Activate() end)
+            end
+            for _, sec in ipairs(entry.Sections) do
+                if count < 40 and sec.Title and sec.Title:lower():find(query, 1, true) then
+                    count = count + 1
+                    local secInst = sec.Instance
+                    AddResultRow(entry.Tab, sec.Title, count, function() GoToResult(entry, secInst) end)
+                end
+                for _, item in ipairs(sec.Items) do
+                    if count >= 40 then break end
+                    local nm = tostring(item.Name or "")
+                    if nm ~= "" and nm:lower():find(query, 1, true) then
+                        count = count + 1
+                        local inst = item.Instance
+                        AddResultRow(entry.Tab, nm, count, function() GoToResult(entry, inst) end)
+                    end
+                end
+            end
+        end
+        if count == 0 then
+            AddResultRow("No results", "", 1, function() end)
+            count = 1
+        end
+        SearchResults.Visible = true
+        local h = math.min(count * 26 + 6, 220)
+        SearchResults.Size = UDim2.new(1, -201, 0, h)
+        SearchResults.CanvasSize = UDim2.new(0, 0, 0, count * 26 + 6)
+    end
+    local sc1 = SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
+        RunSearch(SearchInput.Text)
+    end)
+    local sc2 = SearchInput.FocusLost:Connect(function()
+        task.delay(0.2, function()
+            if SearchInput.Text == "" then SearchResults.Visible = false end
+        end)
+    end)
+    table.insert(Library.Connections, sc1)
+    table.insert(Library.Connections, sc2)
     function WindowObj:CreateRawSection(text, parent)
         local Section = {}
         local Container = Instance.new("Frame")
@@ -2080,11 +2461,9 @@ function Library:CreateWindow(options)
                 end
             end)
         end)
-        MenuSec:Toggle("Show Keybind List", "KeybindListToggle", true, "Show the active keybinds widget", function(state)
+        MenuSec:Toggle("Show Keybind List", "KeybindListToggle", true, "Show the keybind list (quick toggle buttons on mobile)", function(state)
             Library.ShowKeybinds = state
-            if Library.KeybindList then
-                Library.KeybindList.Frame.Visible = state and (#Library.KeybindList.Container:GetChildren() > 1)
-            end
+            if Library.RefreshBindList then Library.RefreshBindList() end
         end)
         MenuSec:ColorPicker("Accent Color", "MenuAccentColor", Theme.Accent, "Change the theme color", function(col)
             Library:UpdateTheme(col)
@@ -2522,7 +2901,7 @@ function Library:CreateWindow(options)
         Indicator.Parent = TabBtn
         Corner(Indicator, 2)
         RegisterTheme(Indicator, "BackgroundColor")
-        local c3 = TabBtn.MouseButton1Click:Connect(function()
+        local function ActivateTab()
             for _, p in pairs(MainPages:GetChildren()) do if p:IsA("ScrollingFrame") then p.Visible = false end end
             for _, t in pairs(TabContainer:GetChildren()) do
                 if t:IsA("TextButton") then
@@ -2537,7 +2916,11 @@ function Library:CreateWindow(options)
             Tween(TabBtn, {BackgroundTransparency = 0.95, BackgroundColor3 = Theme.Text})
             if TabBtn:FindFirstChild("ImageLabel") then Tween(TabBtn.ImageLabel, {ImageColor3 = Theme.Text}) end
             Tween(Indicator, {BackgroundTransparency = 0})
-        end)
+        end
+        Tab.Activate = ActivateTab
+        local searchEntry = {Tab = name, Page = Page, Activate = ActivateTab, Sections = {}}
+        table.insert(Library.SearchIndex, searchEntry)
+        local c3 = TabBtn.MouseButton1Click:Connect(ActivateTab)
         table.insert(Library.Connections, c3)
         local tabCount = 0
         for _, c in pairs(TabContainer:GetChildren()) do
@@ -2603,8 +2986,9 @@ function Library:CreateWindow(options)
             Corner(Container, 6)
             Stroke(Container, Theme.Stroke, 1, 0.5)
             Section.Container = Container
-            local secData = {Instance = Container, Items = {}}
+            local secData = {Instance = Container, Items = {}, Title = text}
             table.insert(Library.Elements, secData)
+            table.insert(searchEntry.Sections, secData)
             local STitle = Instance.new("TextLabel")
             STitle.Text = text
             STitle.Font = Config.FontBold
@@ -2737,9 +3121,10 @@ function Library:CreateWindow(options)
                 Label.Font = Config.FontMain
                 Label.TextSize = 13
                 Label.TextColor3 = Theme.Text
-                Label.Size = UDim2.new(1, -30, 1, 0)
+                Label.Size = UDim2.new(1, -96, 1, 0)
                 Label.Position = UDim2.new(0, 10, 0, 0)
                 Label.TextXAlignment = Enum.TextXAlignment.Left
+                Label.TextTruncate = Enum.TextTruncate.AtEnd
                 Label.BackgroundTransparency = 1
                 Label.Parent = Btn
                 local Box = Instance.new("Frame")
@@ -2775,9 +3160,10 @@ function Library:CreateWindow(options)
                     if currentTween then currentTween:Cancel() end
                     Tween(Fill, {BackgroundTransparency = toggled and 0 or 1}, 0.2)
                     Library.Flags[flag] = toggled
-                    if ToggleObj.KeybindValue then
-                        Library:UpdateKeybindList(text, ToggleObj.KeybindValue.Name, toggled, ToggleObj.KeybindMode)
+                    if ToggleObj.BindName then
+                        Library:RegisterBind(ToggleObj.BindName, {Active = toggled})
                     end
+                    if ToggleObj.RefreshKeyBtn then ToggleObj.RefreshKeyBtn() end
                     if toggled then
                         SubContainer.Visible = true
                         SubContainer.ClipsDescendants = true
@@ -2803,6 +3189,174 @@ function Library:CreateWindow(options)
                     end
                 end
                 ToggleObj.UpdateAnim = ToggleAnim
+                local function SetToggled(state)
+                    if toggled == state then return end
+                    toggled = state
+                    Library.Unsaved = true
+                    ToggleAnim()
+                    callback(toggled)
+                end
+                ToggleObj.Set = function(_, state) SetToggled(state and true or false) end
+                local bindName = text
+                if Library.Binds[bindName] then bindName = text .. " (" .. STitle.Text .. ")" end
+                ToggleObj.BindName = bindName
+                local touchOnly = IsTouchOnly()
+                local keyFlag = flag .. "_Keybind"
+                local pinFlag = flag .. "_Pinned"
+                local savedBind = Library.Flags[keyFlag]
+                local hasSavedBind = type(savedBind) == "table" and savedBind.Key ~= nil
+                local bindKey = hasSavedBind and savedBind.Key or Enum.KeyCode.Unknown
+                local bindMode = (hasSavedBind and savedBind.Mode) or "Toggle"
+                local pinned = Library.Flags[pinFlag] == true
+                Library.Defaults[keyFlag] = {Key = Enum.KeyCode.Unknown, Mode = "Toggle"}
+                Library.Defaults[pinFlag] = false
+                Library.Flags[keyFlag] = {Key = bindKey, Mode = bindMode}
+                Library.Flags[pinFlag] = pinned
+                ToggleObj.KeybindValue = bindKey
+                ToggleObj.KeybindMode = bindMode
+                local KeyBtn = Instance.new("TextButton")
+                KeyBtn.Size = UDim2.new(0, 58, 0, 18)
+                KeyBtn.Position = UDim2.new(1, -34, 0.5, 0)
+                KeyBtn.AnchorPoint = Vector2.new(1, 0.5)
+                KeyBtn.BackgroundColor3 = Theme.Background
+                KeyBtn.BackgroundTransparency = 1
+                KeyBtn.Text = ""
+                KeyBtn.TextColor3 = Theme.TextDark
+                KeyBtn.Font = Config.FontMain
+                KeyBtn.TextSize = 11
+                KeyBtn.AutoButtonColor = false
+                KeyBtn.Parent = Btn
+                Corner(KeyBtn, 4)
+                local binding = false
+                local function RefreshKeyBtn()
+                    if binding then return end
+                    if touchOnly then
+                        KeyBtn.Text = pinned and "PINNED" or "PIN"
+                        KeyBtn.BackgroundTransparency = pinned and 0.2 or 0.6
+                        KeyBtn.TextColor3 = pinned and Theme.Text or Theme.TextDark
+                    elseif bindKey ~= Enum.KeyCode.Unknown then
+                        KeyBtn.Text = "[" .. bindKey.Name .. "]"
+                        KeyBtn.BackgroundTransparency = 0.4
+                        KeyBtn.TextColor3 = toggled and Theme.Accent or Theme.TextDark
+                    else
+                        KeyBtn.Text = "[ + ]"
+                        KeyBtn.BackgroundTransparency = 1
+                        KeyBtn.TextColor3 = Theme.Stroke
+                    end
+                end
+                ToggleObj.RefreshKeyBtn = RefreshKeyBtn
+                local function PushBind()
+                    Library:RegisterBind(bindName, {
+                        Key = touchOnly and "Unknown" or bindKey.Name,
+                        Mode = bindMode,
+                        Active = toggled,
+                        Pinned = pinned,
+                        Toggle = function() SetToggled(not toggled) end,
+                    })
+                    RefreshKeyBtn()
+                end
+                local ModeGui
+                local function SetBindMode(md)
+                    bindMode = md
+                    ToggleObj.KeybindMode = md
+                    Library.Flags[keyFlag] = {Key = bindKey, Mode = bindMode}
+                    Library.Unsaved = true
+                    if md == "Always" then SetToggled(true) end
+                    PushBind()
+                end
+                local kb1 = KeyBtn.MouseButton1Click:Connect(function()
+                    if touchOnly then
+                        pinned = not pinned
+                        Library.Flags[pinFlag] = pinned
+                        Library.Unsaved = true
+                        PushBind()
+                        return
+                    end
+                    if binding then return end
+                    binding = true
+                    KeyBtn.Text = "[...]"
+                    KeyBtn.BackgroundTransparency = 0.2
+                    KeyBtn.TextColor3 = Theme.Accent
+                    local conn
+                    conn = UserInputService.InputBegan:Connect(function(input)
+                        if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+                        if input.KeyCode == Enum.KeyCode.Backspace or input.KeyCode == Enum.KeyCode.Delete then
+                            bindKey = Enum.KeyCode.Unknown
+                        elseif input.KeyCode ~= Enum.KeyCode.Escape and input.KeyCode ~= Enum.KeyCode.Unknown then
+                            bindKey = input.KeyCode
+                        end
+                        ToggleObj.KeybindValue = bindKey
+                        Library.Flags[keyFlag] = {Key = bindKey, Mode = bindMode}
+                        Library.Unsaved = true
+                        binding = false
+                        conn:Disconnect()
+                        PushBind()
+                    end)
+                end)
+                table.insert(Library.Connections, kb1)
+                if not touchOnly then
+                    ModeGui = Instance.new("Frame")
+                    ModeGui.Size = UDim2.new(0, 80, 0, 60)
+                    ModeGui.Position = UDim2.new(1, -34, 0, 24)
+                    ModeGui.AnchorPoint = Vector2.new(1, 0)
+                    ModeGui.BackgroundColor3 = Theme.Sidebar
+                    ModeGui.Visible = false
+                    ModeGui.ZIndex = 100
+                    ModeGui.Parent = Btn
+                    Corner(ModeGui, 4)
+                    Stroke(ModeGui, Theme.Stroke, 1)
+                    local ModeList = Instance.new("UIListLayout")
+                    ModeList.Parent = ModeGui
+                    for _, md in ipairs({"Toggle", "Hold", "Always"}) do
+                        local mBtn = Instance.new("TextButton")
+                        mBtn.Size = UDim2.new(1, 0, 0, 20)
+                        mBtn.BackgroundTransparency = 1
+                        mBtn.Text = md
+                        mBtn.TextColor3 = Theme.TextDark
+                        mBtn.Font = Config.FontMain
+                        mBtn.TextSize = 11
+                        mBtn.ZIndex = 101
+                        mBtn.Parent = ModeGui
+                        local mb1 = mBtn.MouseButton1Click:Connect(function()
+                            ModeGui.Visible = false
+                            SetBindMode(md)
+                        end)
+                        table.insert(Library.Connections, mb1)
+                    end
+                    local kb2 = KeyBtn.MouseButton2Click:Connect(function()
+                        ModeGui.Visible = not ModeGui.Visible
+                    end)
+                    table.insert(Library.Connections, kb2)
+                    local kb3 = UserInputService.InputBegan:Connect(function(input, gp)
+                        if gp or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+                        if bindKey == Enum.KeyCode.Unknown or input.KeyCode ~= bindKey then return end
+                        if bindMode == "Toggle" then
+                            SetToggled(not toggled)
+                        elseif bindMode == "Hold" then
+                            SetToggled(true)
+                        end
+                    end)
+                    local kb4 = UserInputService.InputEnded:Connect(function(input, gp)
+                        if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+                        if bindKey == Enum.KeyCode.Unknown or input.KeyCode ~= bindKey then return end
+                        if bindMode == "Hold" then SetToggled(false) end
+                    end)
+                    table.insert(Library.Connections, kb3)
+                    table.insert(Library.Connections, kb4)
+                end
+                Library.Signals[keyFlag] = function(val)
+                    if type(val) ~= "table" then return end
+                    bindKey = val.Key or Enum.KeyCode.Unknown
+                    bindMode = val.Mode or "Toggle"
+                    ToggleObj.KeybindValue = bindKey
+                    ToggleObj.KeybindMode = bindMode
+                    PushBind()
+                end
+                Library.Signals[pinFlag] = function(val)
+                    pinned = val == true
+                    PushBind()
+                end
+                PushBind()
                 local c5 = SubList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                     if toggled then
                         local h = SubList.AbsoluteContentSize.Y
@@ -2963,107 +3517,16 @@ function Library:CreateWindow(options)
                     CreateDropdownElement(txt, dflag, opts, def, nil, cb, Content, Section, isMulti, SubContainer)
                 end
                 function ToggleObj:Keybind(defaultKey, mode)
-                    ToggleObj.KeybindValue = defaultKey or Enum.KeyCode.Unknown
-                    ToggleObj.KeybindMode = mode or "Toggle"
-                    local KeyBtn = Instance.new("TextButton")
-                    KeyBtn.Size = UDim2.new(0, 60, 0, 18)
-                    KeyBtn.Position = UDim2.new(1, -30, 0.5, 0)
-                    KeyBtn.AnchorPoint = Vector2.new(1, 0.5)
-                    KeyBtn.BackgroundTransparency = 1
-                    KeyBtn.Text = "[" .. (ToggleObj.KeybindValue.Name) .. "]"
-                    KeyBtn.TextColor3 = Theme.TextDark
-                    KeyBtn.Font = Config.FontMain
-                    KeyBtn.TextSize = 11
-                    KeyBtn.TextXAlignment = Enum.TextXAlignment.Right
-                    KeyBtn.Parent = Btn
-                    local binding = false
-                    local kb1 = KeyBtn.MouseButton1Click:Connect(function()
-                        if binding then return end
-                        binding = true
-                        KeyBtn.Text = "[...]"
-                        KeyBtn.TextColor3 = Theme.Accent
-                        local conn
-                        conn = UserInputService.InputBegan:Connect(function(input)
-                            if input.UserInputType == Enum.UserInputType.Keyboard then
-                                if input.KeyCode == Enum.KeyCode.Backspace or input.KeyCode == Enum.KeyCode.Delete then ToggleObj.KeybindValue = Enum.KeyCode.Unknown
-                                elseif input.KeyCode ~= Enum.KeyCode.Escape and input.KeyCode ~= Enum.KeyCode.Unknown then ToggleObj.KeybindValue = input.KeyCode end
-                                KeyBtn.Text = "[" .. (ToggleObj.KeybindValue.Name) .. "]"
-                                KeyBtn.TextColor3 = Theme.TextDark
-                                binding = false
-                                Library.Unsaved = true
-                                conn:Disconnect()
-                                if toggled then Library:UpdateKeybindList(text, ToggleObj.KeybindValue.Name, toggled, ToggleObj.KeybindMode) end
-                            end
-                        end)
-                    end)
-                    table.insert(Library.Connections, kb1)
-                    local ModeGui = Instance.new("Frame")
-                    ModeGui.Size = UDim2.new(0, 80, 0, 60)
-                    ModeGui.BackgroundColor3 = Theme.Sidebar
-                    ModeGui.Visible = false
-                    ModeGui.ZIndex = 100
-                    ModeGui.Parent = Btn
-                    Corner(ModeGui, 4)
-                    Stroke(ModeGui, Theme.Stroke, 1)
-                    local ModeList = Instance.new("UIListLayout")
-                    ModeList.Parent = ModeGui
-                    local modes = {"Toggle", "Hold", "Always"}
-                    for _, md in ipairs(modes) do
-                        local mBtn = Instance.new("TextButton")
-                        mBtn.Size = UDim2.new(1, 0, 0, 20)
-                        mBtn.BackgroundTransparency = 1
-                        mBtn.Text = md
-                        mBtn.TextColor3 = Theme.TextDark
-                        mBtn.Font = Config.FontMain
-                        mBtn.TextSize = 11
-                        mBtn.Parent = ModeGui
-                        mBtn.ZIndex = 101
-                        local mb1 = mBtn.MouseButton1Click:Connect(function()
-                            ToggleObj.KeybindMode = md
-                            ModeGui.Visible = false
-                            Library.Unsaved = true
-                            if md == "Always" and not toggled then
-                                toggled = true
-                                ToggleAnim()
-                                callback(toggled)
-                            end
-                            if toggled then Library:UpdateKeybindList(text, ToggleObj.KeybindValue.Name, toggled, md) end
-                        end)
-                        table.insert(Library.Connections, mb1)
+                    if not hasSavedBind and defaultKey then
+                        bindKey = defaultKey
+                        ToggleObj.KeybindValue = bindKey
+                        Library.Flags[keyFlag] = {Key = bindKey, Mode = bindMode}
                     end
-                    local kb2 = KeyBtn.MouseButton2Click:Connect(function()
-                        ModeGui.Position = UDim2.new(1, -110, 0, 20)
-                        ModeGui.Visible = not ModeGui.Visible
-                        if ModeGui.Visible then SubContainer.ClipsDescendants = false end
-                    end)
-                    table.insert(Library.Connections, kb2)
-                    if ToggleObj.BindConnection then ToggleObj.BindConnection:Disconnect() end
-                    if ToggleObj.BindConnectionEnded then ToggleObj.BindConnectionEnded:Disconnect() end
-                    ToggleObj.BindConnection = UserInputService.InputBegan:Connect(function(input, gp)
-                        if not gp and input.KeyCode == ToggleObj.KeybindValue and ToggleObj.KeybindValue ~= Enum.KeyCode.Unknown then
-                            if ToggleObj.KeybindMode == "Toggle" then
-                                toggled = not toggled
-                                ToggleAnim()
-                                callback(toggled)
-                            elseif ToggleObj.KeybindMode == "Hold" then
-                                toggled = true
-                                ToggleAnim()
-                                callback(toggled)
-                            end
-                        end
-                    end)
-                    ToggleObj.BindConnectionEnded = UserInputService.InputEnded:Connect(function(input, gp)
-                        if not gp and input.KeyCode == ToggleObj.KeybindValue and ToggleObj.KeybindValue ~= Enum.KeyCode.Unknown then
-                            if ToggleObj.KeybindMode == "Hold" then
-                                toggled = false
-                                ToggleAnim()
-                                callback(toggled)
-                            end
-                        end
-                    end)
-                    table.insert(Library.Connections, ToggleObj.BindConnection)
-                    table.insert(Library.Connections, ToggleObj.BindConnectionEnded)
-                    if toggled then Library:UpdateKeybindList(text, ToggleObj.KeybindValue.Name, toggled, ToggleObj.KeybindMode) end
+                    if mode and not hasSavedBind then
+                        SetBindMode(mode)
+                    else
+                        PushBind()
+                    end
                     return ToggleObj
                 end
                 return ToggleObj
@@ -3102,7 +3565,21 @@ function Library:CreateWindow(options)
                 Corner(KeyBtn, 4)
                 Stroke(KeyBtn, Theme.Stroke, 1, 0.5)
                 local toggled = (kMode == "Always")
-                Library:UpdateKeybindList(text, key.Name, toggled, kMode)
+                local PushKeybindEntry
+                PushKeybindEntry = function()
+                    Library:RegisterBind(text, {
+                        Key = key.Name,
+                        Mode = kMode,
+                        Active = toggled,
+                        Pinned = true,
+                        Toggle = function()
+                            toggled = not toggled
+                            PushKeybindEntry()
+                            callback(toggled)
+                        end,
+                    })
+                end
+                PushKeybindEntry()
                 local binding = false
                 local c1 = KeyBtn.MouseButton1Click:Connect(function()
                     if binding then return end
@@ -3123,7 +3600,7 @@ function Library:CreateWindow(options)
                             binding = false
                             Library.Unsaved = true
                             conn:Disconnect()
-                            Library:UpdateKeybindList(text, key.Name, toggled, kMode)
+                            PushKeybindEntry()
                         end
                     end)
                 end)
@@ -3159,7 +3636,7 @@ function Library:CreateWindow(options)
                             toggled = true
                             callback(true)
                         end
-                        Library:UpdateKeybindList(text, key.Name, toggled, kMode)
+                        PushKeybindEntry()
                     end)
                     table.insert(Library.Connections, c2)
                 end
@@ -3172,11 +3649,11 @@ function Library:CreateWindow(options)
                     if not gp and input.KeyCode == key and key ~= Enum.KeyCode.Unknown then
                         if kMode == "Toggle" then
                             toggled = not toggled
-                            Library:UpdateKeybindList(text, key.Name, toggled, kMode)
+                            PushKeybindEntry()
                             callback(toggled)
                         elseif kMode == "Hold" then
                             toggled = true
-                            Library:UpdateKeybindList(text, key.Name, toggled, kMode)
+                            PushKeybindEntry()
                             callback(toggled)
                         end
                     end
@@ -3185,7 +3662,7 @@ function Library:CreateWindow(options)
                     if not gp and input.KeyCode == key and key ~= Enum.KeyCode.Unknown then
                         if kMode == "Hold" then
                             toggled = false
-                            Library:UpdateKeybindList(text, key.Name, toggled, kMode)
+                            PushKeybindEntry()
                             callback(toggled)
                         end
                     end
@@ -3202,7 +3679,7 @@ function Library:CreateWindow(options)
                             toggled = true
                             callback(true)
                         end
-                        Library:UpdateKeybindList(text, key.Name, toggled, kMode)
+                        PushKeybindEntry()
                     end
                 end
                 local BindObj = {}
@@ -3211,7 +3688,7 @@ function Library:CreateWindow(options)
                     KeyBtn.Text = "[" .. key.Name .. "]"
                     Library.Flags[flag] = {Key = key, Mode = kMode}
                     Library.Unsaved = true
-                    Library:UpdateKeybindList(text, key.Name, toggled, kMode)
+                    PushKeybindEntry()
                 end
                 return BindObj
             end
@@ -3633,12 +4110,12 @@ function Library:CreateWindow(options)
 
                 -- Weapon list
                 local WepScroll = Instance.new("ScrollingFrame")
-                WepScroll.Size = UDim2.new(1, 0, 0, 160)
+                WepScroll.Size = UDim2.new(1, 0, 0, 138)
                 WepScroll.BackgroundColor3 = Theme.Background
                 WepScroll.BorderSizePixel = 0
                 WepScroll.ScrollBarThickness = 3
                 WepScroll.ScrollBarImageColor3 = Theme.Accent
-                WepScroll.LayoutOrder = 2
+                WepScroll.LayoutOrder = 3
                 WepScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
                 WepScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
                 WepScroll.Parent = LeftPanel
@@ -3655,11 +4132,16 @@ function Library:CreateWindow(options)
                 WepScrollPad.Parent = WepScroll
 
                 local weaponButtons = {}
+                local wepQuery = ""
                 local function HighlightWeapon(name)
                     for n, b in pairs(weaponButtons) do
                         b.BackgroundColor3 = (n == name) and Theme.Accent or Theme.Section
                     end
                 end
+                CreateListSearch(LeftPanel, "Search weapon...", 2, function(q)
+                    wepQuery = q
+                    FilterButtons(weaponButtons, q)
+                end)
 
                 -- SKIN header
                 local SkinHeader = Instance.new("TextLabel")
@@ -3670,17 +4152,17 @@ function Library:CreateWindow(options)
                 SkinHeader.TextSize = 12
                 SkinHeader.Font = Config.FontBold
                 SkinHeader.TextXAlignment = Enum.TextXAlignment.Left
-                SkinHeader.LayoutOrder = 3
+                SkinHeader.LayoutOrder = 4
                 SkinHeader.Parent = LeftPanel
 
                 -- Skin list
                 local SkinScroll = Instance.new("ScrollingFrame")
-                SkinScroll.Size = UDim2.new(1, 0, 0, 140)
+                SkinScroll.Size = UDim2.new(1, 0, 0, 118)
                 SkinScroll.BackgroundColor3 = Theme.Background
                 SkinScroll.BorderSizePixel = 0
                 SkinScroll.ScrollBarThickness = 3
                 SkinScroll.ScrollBarImageColor3 = Theme.Accent
-                SkinScroll.LayoutOrder = 4
+                SkinScroll.LayoutOrder = 6
                 SkinScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
                 SkinScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
                 SkinScroll.Parent = LeftPanel
@@ -3697,17 +4179,22 @@ function Library:CreateWindow(options)
                 SkinScrollPad.Parent = SkinScroll
 
                 local skinButtons = {}
+                local skinQuery = ""
                 local function HighlightSkin(name)
                     for n, b in pairs(skinButtons) do
                         b.BackgroundColor3 = (n == name) and Theme.Accent or Theme.Section
                     end
                 end
+                CreateListSearch(LeftPanel, "Search skin...", 5, function(q)
+                    skinQuery = q
+                    FilterButtons(skinButtons, q)
+                end)
 
                 -- EQUIP / RESTORE buttons
                 local ActFrame = Instance.new("Frame")
                 ActFrame.Size = UDim2.new(1, 0, 0, 32)
                 ActFrame.BackgroundTransparency = 1
-                ActFrame.LayoutOrder = 5
+                ActFrame.LayoutOrder = 7
                 ActFrame.Parent = LeftPanel
 
                 local EquipBtnL = Instance.new("TextButton")
@@ -3761,6 +4248,7 @@ function Library:CreateWindow(options)
 
                 local WorldMdl = Instance.new("WorldModel")
                 WorldMdl.Parent = VPFrame
+                local SkinCtrl = CreatePreviewController(VPFrame, VPCam)
 
                 local LightPart = Instance.new("Part")
                 LightPart.Transparency = 1
@@ -3894,10 +4382,10 @@ function Library:CreateWindow(options)
                     local WScroll
                     if not pNoWeapons then
                         mkHeader("WEAPON", 1)
-                        WScroll = mkScroll(2, 150)
+                        WScroll = mkScroll(3, 128)
                     end
-                    mkHeader(pItemHeader, 3)
-                    local IScroll = mkScroll(4, pNoWeapons and 300 or (pHasInverted and 118 or 140))
+                    mkHeader(pItemHeader, 4)
+                    local IScroll = mkScroll(6, pNoWeapons and 278 or (pHasInverted and 96 or 118))
 
                     if pHasInverted then
                         local tf = Instance.new("TextButton")
@@ -3908,7 +4396,7 @@ function Library:CreateWindow(options)
                         tf.TextSize = 12
                         tf.Font = Config.FontMain
                         tf.AutoButtonColor = false
-                        tf.LayoutOrder = 5
+                        tf.LayoutOrder = 7
                         tf.Parent = LPan
                         Corner(tf, 4)
                         Stroke(tf, Theme.Stroke, 1, 0.5)
@@ -3923,7 +4411,7 @@ function Library:CreateWindow(options)
                     local ActF = Instance.new("Frame")
                     ActF.Size = UDim2.new(1, 0, 0, 32)
                     ActF.BackgroundTransparency = 1
-                    ActF.LayoutOrder = 6
+                    ActF.LayoutOrder = 8
                     ActF.Parent = LPan
                     local EqB = Instance.new("TextButton")
                     EqB.Size = UDim2.new(0.5, -3, 1, 0)
@@ -3969,6 +4457,7 @@ function Library:CreateWindow(options)
                     VP.CurrentCamera = Cam
                     local WM = Instance.new("WorldModel")
                     WM.Parent = VP
+                    local pCtrl = CreatePreviewController(VP, Cam)
                     local L1 = Instance.new("Part")
                     L1.Transparency = 1
                     L1.Anchored = true
@@ -4022,6 +4511,7 @@ function Library:CreateWindow(options)
                             if c ~= L1 then pcall(function() c:Destroy() end) end
                         end
                         pPreviewModel = nil
+                        pCtrl.Model = nil
                     end
                     local function pShowPreview(itemName)
                         pClearPreview()
@@ -4048,23 +4538,27 @@ function Library:CreateWindow(options)
                         local dist = maxDim * 2.2
                         Cam.CFrame = CFrame.new(cf.Position + Vector3.new(0, size.Y * 0.2, dist), cf.Position)
                         pAngle = 0
+                        pCtrl:Reset()
+                        pCtrl.Model = clone
                         NameLbl.Text = itemName
                     end
                     local prc = RunService.RenderStepped:Connect(function(dt)
-                        if pPreviewModel and Page.Visible then
-                            pAngle = pAngle + dt * 0.8
-                            pcall(function()
-                                local cf, size = pPreviewModel:GetBoundingBox()
-                                local center = cf.Position
-                                local maxDim = math.max(size.X, size.Y, size.Z, 1)
-                                local dist = maxDim * 2.2
-                                Cam.CFrame = CFrame.lookAt(center + Vector3.new(math.cos(pAngle) * dist, size.Y * 0.3, math.sin(pAngle) * dist), center)
-                            end)
-                        end
+                        if pPreviewModel and Page.Visible then pCtrl:Step(dt) end
                     end)
                     table.insert(Library.Connections, prc)
 
                     local wButtons, iButtons = {}, {}
+                    local pWepQuery, pItemQuery = "", ""
+                    if WScroll then
+                        CreateListSearch(LPan, "Search weapon...", 2, function(q)
+                            pWepQuery = q
+                            FilterButtons(wButtons, q)
+                        end)
+                    end
+                    CreateListSearch(LPan, "Search " .. pItemHeader:lower() .. "...", 5, function(q)
+                        pItemQuery = q
+                        FilterButtons(iButtons, q)
+                    end)
                     local function pHiWeapon(name)
                         for n, b in pairs(wButtons) do b.BackgroundColor3 = (n == name) and Theme.Accent or Theme.Section end
                     end
@@ -4101,6 +4595,7 @@ function Library:CreateWindow(options)
                             end)
                             table.insert(Library.Connections, icc)
                         end
+                        FilterButtons(iButtons, pItemQuery)
                     end
                     local function pBuildWeapons()
                         if not WScroll then return end
@@ -4135,6 +4630,7 @@ function Library:CreateWindow(options)
                             end)
                             table.insert(Library.Connections, wcc)
                         end
+                        FilterButtons(wButtons, pWepQuery)
                     end
                     pBuildWeapons()
                     if pNoWeapons then pBuildItems(nil) end
@@ -4204,6 +4700,7 @@ function Library:CreateWindow(options)
                         end
                     end
                     previewModel = nil
+                    SkinCtrl.Model = nil
                 end
 
                 local function ShowPreview(skinName)
@@ -4237,25 +4734,13 @@ function Library:CreateWindow(options)
                     local dist = maxDim * 2.2
                     VPCam.CFrame = CFrame.new(cf.Position + Vector3.new(0, size.Y * 0.2, dist), cf.Position)
                     previewAngle = 0
+                    SkinCtrl:Reset()
+                    SkinCtrl.Model = clone
                     SkinNameLabel.Text = skinName
                 end
 
                 local rotConn = RunService.RenderStepped:Connect(function(dt)
-                    if previewModel then
-                        previewAngle = previewAngle + dt * 0.8
-                        pcall(function()
-                            local cf, size = previewModel:GetBoundingBox()
-                            local center = cf.Position
-                            local maxDim = math.max(size.X, size.Y, size.Z, 1)
-                            local dist = maxDim * 2.2
-                            local camPos = center + Vector3.new(
-                                math.cos(previewAngle) * dist,
-                                size.Y * 0.3,
-                                math.sin(previewAngle) * dist
-                            )
-                            VPCam.CFrame = CFrame.lookAt(camPos, center)
-                        end)
-                    end
+                    if previewModel and SkinsPage.Visible then SkinCtrl:Step(dt) end
                 end)
                 table.insert(Library.Connections, rotConn)
 
@@ -4282,6 +4767,7 @@ function Library:CreateWindow(options)
                         wPad.PaddingLeft = UDim.new(0, 8)
                         wPad.Parent = btn
                         weaponButtons[wName] = btn
+                        btn.Visible = wepQuery == "" or wName:lower():find(wepQuery, 1, true) ~= nil
 
                         local wc = btn.MouseButton1Click:Connect(function()
                             selectedWeapon = wName
@@ -4316,6 +4802,7 @@ function Library:CreateWindow(options)
                                 end)
                                 table.insert(Library.Connections, sc)
                             end
+                            FilterButtons(skinButtons, skinQuery)
                             ClearPreview()
                             SkinNameLabel.Text = "Select a skin"
                         end)
