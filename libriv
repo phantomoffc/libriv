@@ -3109,7 +3109,7 @@ function Library:CreateWindow(options)
                 table.insert(Library.Connections, boundsConn)
                 UpdateHeight()
             end
-            function Section:Toggle(text, flag, default, tooltipText, callback)
+            function Section:Toggle(text, flag, default, tooltipText, callback, bindable)
                 Library.Defaults[flag] = default or false
                 local toggled = Library.Flags[flag]
                 if toggled == nil then
@@ -3215,6 +3215,7 @@ function Library:CreateWindow(options)
                     callback(toggled)
                 end
                 ToggleObj.Set = function(_, state) SetToggled(state and true or false) end
+                if bindable then
                 local bindName = text
                 if Library.Binds[bindName] then bindName = text .. " (" .. STitle.Text .. ")" end
                 ToggleObj.BindName = bindName
@@ -3380,6 +3381,9 @@ function Library:CreateWindow(options)
                     PushBind()
                 end
                 PushBind()
+                else
+                    Label.Size = UDim2.new(1, -36, 1, 0)
+                end
                 local c5 = SubList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                     if toggled then
                         local h = SubList.AbsoluteContentSize.Y
