@@ -741,9 +741,7 @@ local function BindHasKey(key)
     return key ~= nil and key ~= "None" and key ~= "Unknown" and key ~= ""
 end
 local function BindIsListed(entry)
-    if IsTouchOnly() then
-        return entry.Toggle ~= nil and entry.Pinned == true
-    end
+    if IsTouchOnly() then return false end
     return BindHasKey(entry.Key) and entry.Mode ~= "Always"
 end
 local function RefreshBindList()
@@ -765,14 +763,14 @@ local function RefreshBindList()
             end
         end
     end
-    Library.KeybindList.Title.Text = IsTouchOnly() and "Quick Toggles" or "Keybinds"
+    Library.KeybindList.Title.Text = "Keybinds"
     Library.KeybindList.Frame.Visible = Library.ShowKeybinds and shown > 0
 end
 Library.RefreshBindList = function() RefreshBindList() end
 local function CreateBindRow(name, entry)
     local Row = Instance.new("TextButton")
     Row.Name = name
-    Row.Size = UDim2.new(1, -8, 0, IsTouchOnly() and 30 or 22)
+    Row.Size = UDim2.new(1, -8, 0, 22)
     Row.Position = UDim2.new(0, 4, 0, 0)
     Row.BackgroundColor3 = Theme.Container
     Row.BackgroundTransparency = 1
@@ -3215,22 +3213,17 @@ function Library:CreateWindow(options)
                     callback(toggled)
                 end
                 ToggleObj.Set = function(_, state) SetToggled(state and true or false) end
-                if bindable then
+                if bindable and not IsTouchOnly() then
                 local bindName = text
                 if Library.Binds[bindName] then bindName = text .. " (" .. STitle.Text .. ")" end
                 ToggleObj.BindName = bindName
-                local touchOnly = IsTouchOnly()
                 local keyFlag = flag .. "_Keybind"
-                local pinFlag = flag .. "_Pinned"
                 local savedBind = Library.Flags[keyFlag]
                 local hasSavedBind = type(savedBind) == "table" and savedBind.Key ~= nil
                 local bindKey = hasSavedBind and savedBind.Key or Enum.KeyCode.Unknown
                 local bindMode = (hasSavedBind and savedBind.Mode) or "Toggle"
-                local pinned = Library.Flags[pinFlag] == true
                 Library.Defaults[keyFlag] = {Key = Enum.KeyCode.Unknown, Mode = "Toggle"}
-                Library.Defaults[pinFlag] = false
                 Library.Flags[keyFlag] = {Key = bindKey, Mode = bindMode}
-                Library.Flags[pinFlag] = pinned
                 ToggleObj.KeybindValue = bindKey
                 ToggleObj.KeybindMode = bindMode
                 local KeyBtn = Instance.new("TextButton")
@@ -3250,12 +3243,7 @@ function Library:CreateWindow(options)
                 local binding = false
                 local function RefreshKeyBtn()
                     if binding then return end
-                    if touchOnly then
-                        KeyBtn.Text = pinned and "PINNED" or "PIN"
-                        KeyBtn.BackgroundTransparency = 0.1
-                        KeyBtn.TextColor3 = pinned and Theme.Accent or Theme.TextDark
-                        KeyStroke.Color = pinned and Theme.Accent or Theme.Stroke
-                    elseif bindKey ~= Enum.KeyCode.Unknown then
+                    if bindKey ~= Enum.KeyCode.Unknown then
                         KeyBtn.Text = bindKey.Name
                         KeyBtn.BackgroundTransparency = 0.1
                         KeyBtn.TextColor3 = toggled and Theme.Accent or Theme.Text
@@ -3270,10 +3258,9 @@ function Library:CreateWindow(options)
                 ToggleObj.RefreshKeyBtn = RefreshKeyBtn
                 local function PushBind()
                     Library:RegisterBind(bindName, {
-                        Key = touchOnly and "Unknown" or bindKey.Name,
+                        Key = bindKey.Name,
                         Mode = bindMode,
                         Active = toggled,
-                        Pinned = pinned,
                         Toggle = function() SetToggled(not toggled) end,
                     })
                     RefreshKeyBtn()
@@ -3288,13 +3275,6 @@ function Library:CreateWindow(options)
                     PushBind()
                 end
                 local kb1 = KeyBtn.MouseButton1Click:Connect(function()
-                    if touchOnly then
-                        pinned = not pinned
-                        Library.Flags[pinFlag] = pinned
-                        Library.Unsaved = true
-                        PushBind()
-                        return
-                    end
                     if binding then return end
                     binding = true
                     KeyBtn.Text = "PRESS.."
@@ -3318,7 +3298,7 @@ function Library:CreateWindow(options)
                     end)
                 end)
                 table.insert(Library.Connections, kb1)
-                if not touchOnly then
+                do
                     ModeGui = Instance.new("Frame")
                     ModeGui.Size = UDim2.new(0, 80, 0, 60)
                     ModeGui.Position = UDim2.new(1, -34, 0, 24)
@@ -3374,10 +3354,6 @@ function Library:CreateWindow(options)
                     bindMode = val.Mode or "Toggle"
                     ToggleObj.KeybindValue = bindKey
                     ToggleObj.KeybindMode = bindMode
-                    PushBind()
-                end
-                Library.Signals[pinFlag] = function(val)
-                    pinned = val == true
                     PushBind()
                 end
                 PushBind()
