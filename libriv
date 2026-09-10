@@ -175,7 +175,7 @@ local function CollectThemeScreens()
     if Library.ScreenGui then table.insert(ThemeScreens, Library.ScreenGui) end
     if Library.KeybindList then table.insert(ThemeScreens, Library.KeybindList.Screen) end
     for _, g in pairs(GetParent():GetChildren()) do
-        if g.Name == "PhantomMiniButton" or g.Name == "PhantomTooltip" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" then
+        if g.Name == "PhantomMiniButton" or g.Name == "PhantomTooltip" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" or g.Name == "PhantomEmoteWheel" then
             table.insert(ThemeScreens, g)
         end
     end
@@ -199,6 +199,8 @@ local function RepaintColor(oldColor, newColor)
         end
     end
 end
+Library.Theme = Theme
+Library.Fonts = {Main = Config.FontMain, Bold = Config.FontBold}
 function Library:SetTheme(name)
     local palette = Themes[name]
     if not palette then return false end
@@ -4322,6 +4324,8 @@ function Library:CreateWindow(options)
                     local pHasInverted = tabCfg.invertedToggle and true or false
                     local pNoWeapons = tabCfg.noWeapons and true or false
                     local pGetImage = tabCfg.getImage
+                    local pOnSelect = tabCfg.onSelect
+                    local pNoPreview = tabCfg.noPreview and true or false
                     local pSelWeapon, pSelItem, pInverted = nil, nil, false
 
                     local Page = Instance.new("Frame")
@@ -4499,8 +4503,30 @@ function Library:CreateWindow(options)
                     Corner(EqR, 5)
                     RegisterTheme(EqR, "BackgroundColor")
 
+                    -- pages that preview on the player (emotes) use the right panel as a host
+                    -- for extra controls instead of a viewport
+                    local Host
+                    if pNoPreview then
+                        VP.Visible = false
+                        Host = Instance.new("ScrollingFrame")
+                        Host.Size = UDim2.new(1, -16, 1, -56)
+                        Host.Position = UDim2.new(0, 8, 0, 8)
+                        Host.BackgroundTransparency = 1
+                        Host.BorderSizePixel = 0
+                        Host.ScrollBarThickness = 3
+                        Host.ScrollBarImageColor3 = Theme.Accent
+                        Host.CanvasSize = UDim2.new(0, 0, 0, 0)
+                        Host.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                        Host.Parent = RPan
+                        RegisterTheme(Host, "ScrollBar")
+                        local hl = Instance.new("UIListLayout")
+                        hl.Padding = UDim.new(0, 6)
+                        hl.SortOrder = Enum.SortOrder.LayoutOrder
+                        hl.Parent = Host
+                    end
+
                     local PrevImg
-                    if pGetImage then
+                    if pGetImage and not pNoPreview then
                         PrevImg = Instance.new("ImageLabel")
                         PrevImg.Size = UDim2.new(1, -32, 1, -72)
                         PrevImg.Position = UDim2.new(0, 16, 0, 16)
@@ -4529,6 +4555,7 @@ function Library:CreateWindow(options)
                             if img then return end
                         end
                         if not itemName then return end
+                        if pNoPreview then return end
                         local model = pGetModel(itemName)
                         if not model then NameLbl.Text = itemName .. " (no preview)" return end
                         local ok, clone = pcall(function() return model:Clone() end)
@@ -4598,6 +4625,7 @@ function Library:CreateWindow(options)
                                 pSelItem = iName
                                 pHiItem(iName)
                                 pShowPreview(iName)
+                                if pOnSelect then pcall(pOnSelect, pSelWeapon, iName) end
                             end)
                             table.insert(Library.Connections, icc)
                         end
@@ -4681,6 +4709,7 @@ function Library:CreateWindow(options)
                         Refresh = function()
                             if pNoWeapons then pBuildItems(nil) end
                         end,
+                        Host = Host,
                     }
                 end
 
@@ -4908,6 +4937,14 @@ function Library:CreateWindow(options)
                         return cosmeticPages[tabName].GetSelected()
                     end
                     return selectedWeapon, selectedSkin
+                end
+                function BrowserObj:GetHost(tabName)
+                    local pg = cosmeticPages[tabName]
+                    return pg and pg.Host or nil
+                end
+                function BrowserObj:Refresh(tabName)
+                    local pg = cosmeticPages[tabName]
+                    if pg and pg.Refresh then pg.Refresh() end
                 end
                 return BrowserObj
             end
