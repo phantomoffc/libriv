@@ -1627,15 +1627,6 @@ function Library:CreateWindow(options)
             Logo.BackgroundTransparency = 1
             Logo.Parent = Bar
             RegisterTheme(Logo, "TextColor")
-            local LogoBar = Instance.new("Frame")
-            LogoBar.Size = UDim2.new(0, 3, 0, 22)
-            LogoBar.Position = UDim2.new(0, 8, 0, 35)
-            LogoBar.AnchorPoint = Vector2.new(0, 0.5)
-            LogoBar.BackgroundColor3 = Theme.Accent
-            LogoBar.BorderSizePixel = 0
-            LogoBar.Parent = Bar
-            Corner(LogoBar, 2)
-            RegisterTheme(LogoBar, "BackgroundColor")
             local LogoUnder = Instance.new("Frame")
             LogoUnder.Size = UDim2.new(1, -15, 0, 1)
             LogoUnder.Position = UDim2.new(0, 8, 0, 52)
@@ -2916,9 +2907,8 @@ function Library:CreateWindow(options)
         Indicator.BackgroundColor3 = Theme.Accent
         Indicator.BackgroundTransparency = 1
         Indicator.BorderSizePixel = 0
+        Indicator.Visible = false
         Indicator.Parent = TabBtn
-        Corner(Indicator, 2)
-        RegisterTheme(Indicator, "BackgroundColor")
         local function ActivateTab()
             for _, p in pairs(MainPages:GetChildren()) do if p:IsA("ScrollingFrame") then p.Visible = false end end
             for _, t in pairs(TabContainer:GetChildren()) do
