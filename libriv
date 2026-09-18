@@ -4666,9 +4666,10 @@ function Library:CreateWindow(options)
                     if pNoWeapons then pBuildItems(nil) end
 
                     local function pDoEquip()
-                        pcall(function() pOnEquip(pSelWeapon, pSelItem, pInverted) end)
                         EqB.Text = "EQUIPPED"
                         EqR.Text = "EQUIPPED"
+                        -- the callback may yield (game controllers preload assets); don't hold the button text on it
+                        task.spawn(function() pcall(pOnEquip, pSelWeapon, pSelItem, pInverted) end)
                         task.delay(1.5, function()
                             pcall(function() EqB.Text = pEquipText EqR.Text = pEquipText end)
                         end)
