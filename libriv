@@ -4026,6 +4026,7 @@ function Library:CreateWindow(options)
                 NavBar.Position = UDim2.new(0, 8, 0, 8)
                 NavBar.BackgroundColor3 = Theme.Background
                 NavBar.BorderSizePixel = 0
+                NavBar.Visible = tabCount > 1
                 NavBar.Parent = BrowserFrame
                 Corner(NavBar, 6)
                 local NavLayout = Instance.new("UIListLayout")
@@ -4060,8 +4061,13 @@ function Library:CreateWindow(options)
 
                 -- Content area
                 local ContentArea = Instance.new("Frame")
-                ContentArea.Size = UDim2.new(1, -16, 1, -54)
-                ContentArea.Position = UDim2.new(0, 8, 0, 48)
+                if tabCount > 1 then
+                    ContentArea.Size = UDim2.new(1, -16, 1, -54)
+                    ContentArea.Position = UDim2.new(0, 8, 0, 48)
+                else
+                    ContentArea.Size = UDim2.new(1, -16, 1, -16)
+                    ContentArea.Position = UDim2.new(0, 8, 0, 8)
+                end
                 ContentArea.BackgroundTransparency = 1
                 ContentArea.Parent = BrowserFrame
 
