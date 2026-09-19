@@ -283,82 +283,73 @@ local function FormatNumber(value, increment)
     end
     return tostring(value)
 end
+local Drag_Update, Drag_Input, Drag_Driver = nil, nil, nil
+local function EnsureDragDriver()
+    if Drag_Driver then return end
+    local a = UserInputService.InputChanged:Connect(function(input)
+        if Drag_Update and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            Drag_Input = input
+        end
+    end)
+    local b = RunService.RenderStepped:Connect(function()
+        if Drag_Update and Drag_Input then Drag_Update(Drag_Input) end
+    end)
+    Drag_Driver = {a, b}
+end
+local function BeginDrag(input, update, onEnd)
+    EnsureDragDriver()
+    Drag_Update = update
+    Drag_Input = input
+    local c
+    c = input.Changed:Connect(function()
+        if input.UserInputState == Enum.UserInputState.End then
+            if Drag_Update == update then Drag_Update = nil Drag_Input = nil end
+            c:Disconnect()
+            if onEnd then onEnd() end
+        end
+    end)
+end
 local function MakeDraggable(dragArea, frame, onDragCallback)
     local dragging = false
-    local dragInput, dragStart, startPos
     local c1 = dragArea.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-            local c2
-            c2 = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    if onDragCallback then onDragCallback(false) end
-                    c2:Disconnect()
-                end
+            local dragStart = input.Position
+            local startPos = frame.Position
+            BeginDrag(input, function(cur)
+                local delta = cur.Position - dragStart
+                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                if onDragCallback then onDragCallback(true) end
+            end, function()
+                dragging = false
+                if onDragCallback then onDragCallback(false) end
             end)
         end
     end)
-    local c3 = dragArea.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    local c4 = RunService.RenderStepped:Connect(function()
-        if dragging and dragInput then
-            local delta = dragInput.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-            if onDragCallback then onDragCallback(true) end
-        end
-    end)
     table.insert(Library.Connections, c1)
-    table.insert(Library.Connections, c3)
-    table.insert(Library.Connections, c4)
     return function() return dragging end
 end
 local function MakeResizable(resizeBtn, frame, minSize)
-    local dragging = false
-    local dragInput, dragStart, startSize, startPos, scaleMult
     local c1 = resizeBtn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragInput = input
-            dragStart = input.Position
-            startSize = frame.Size
-            startPos = frame.Position
+            local dragStart = input.Position
+            local startSize = frame.Size
+            local startPos = frame.Position
             local scaleObj = frame:FindFirstChildWhichIsA("UIScale")
-            scaleMult = scaleObj and scaleObj.Scale or 1
+            local scaleMult = scaleObj and scaleObj.Scale or 1
             if scaleMult <= 0 then scaleMult = 1 end
-            local c2
-            c2 = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    c2:Disconnect()
-                end
+            BeginDrag(input, function(cur)
+                local delta = cur.Position - dragStart
+                local newX = math.max(minSize.X, startSize.X.Offset + (delta.X / scaleMult))
+                local newY = math.max(minSize.Y, startSize.Y.Offset + (delta.Y / scaleMult))
+                local diffX = (newX - startSize.X.Offset) * scaleMult
+                local diffY = (newY - startSize.Y.Offset) * scaleMult
+                frame.Size = UDim2.new(0, newX, 0, newY)
+                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + (diffX / 2), startPos.Y.Scale, startPos.Y.Offset + (diffY / 2))
             end)
         end
     end)
-    local c3 = UserInputService.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    local c4 = RunService.RenderStepped:Connect(function()
-        if dragging and dragInput then
-            local delta = dragInput.Position - dragStart
-            local newX = math.max(minSize.X, startSize.X.Offset + (delta.X / scaleMult))
-            local newY = math.max(minSize.Y, startSize.Y.Offset + (delta.Y / scaleMult))
-            local diffX = (newX - startSize.X.Offset) * scaleMult
-            local diffY = (newY - startSize.Y.Offset) * scaleMult
-            frame.Size = UDim2.new(0, newX, 0, newY)
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + (diffX / 2), startPos.Y.Scale, startPos.Y.Offset + (diffY / 2))
-        end
-    end)
     table.insert(Library.Connections, c1)
-    table.insert(Library.Connections, c3)
-    table.insert(Library.Connections, c4)
 end
 local function GetBaseScale()
     local vp = workspace.CurrentCamera.ViewportSize
@@ -374,6 +365,12 @@ end
 function Library:Unload()
     for _, conn in ipairs(Library.Connections) do pcall(function() conn:Disconnect() end) end
     Library.Connections = {}
+    if Drag_Driver then
+        for _, c in ipairs(Drag_Driver) do pcall(function() c:Disconnect() end) end
+        Drag_Driver = nil
+        Drag_Update = nil
+        Drag_Input = nil
+    end
     if Library.ScreenGui then pcall(function() Library.ScreenGui:Destroy() end) Library.ScreenGui = nil end
     if Library.KeybindList then pcall(function() Library.KeybindList.Screen:Destroy() end) Library.KeybindList = nil end
     Library.Binds = {}
@@ -1130,8 +1127,6 @@ local function CreateSliderElement(text, flag, min, max, default, increment, too
     Fill.Parent = Bar
     Corner(Fill, 3)
     RegisterTheme(Fill, "BackgroundColor")
-    local dragging = false
-    local dragInput
     local function SetFromInput(input)
         local r = math.clamp((input.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
         local raw = min + (max - min) * r
@@ -1146,31 +1141,11 @@ local function CreateSliderElement(text, flag, min, max, default, increment, too
     end
     local c1 = Bar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragInput = input
             SetFromInput(input)
-            local c2
-            c2 = input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    c2:Disconnect()
-                end
-            end)
-        end
-    end)
-    local c3 = UserInputService.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-    local c4 = RunService.RenderStepped:Connect(function()
-        if dragging and dragInput then
-            SetFromInput(dragInput)
+            BeginDrag(input, SetFromInput)
         end
     end)
     table.insert(Library.Connections, c1)
-    table.insert(Library.Connections, c3)
-    table.insert(Library.Connections, c4)
     local c5 = ValLabel.FocusLost:Connect(function(enter)
         if enter then
             local cleanText = string.gsub(ValLabel.Text, "[^%d.-]", "")
@@ -2356,60 +2331,20 @@ function Library:CreateWindow(options)
                 HCursor.Position = UDim2.new(0, 0, h, 0)
                 Update()
             end
-            local dragSV = false
-            local dragInputSV
             local sv1 = SVMap.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragSV = true
-                    dragInputSV = input
                     SetSV(input)
-                    local sc2
-                    sc2 = input.Changed:Connect(function()
-                        if input.UserInputState == Enum.UserInputState.End then
-                            dragSV = false
-                            sc2:Disconnect()
-                        end
-                    end)
+                    BeginDrag(input, SetSV)
                 end
-            end)
-            local sv3 = UserInputService.InputChanged:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                    if dragSV then dragInputSV = input end
-                end
-            end)
-            local sv4 = RunService.RenderStepped:Connect(function()
-                if dragSV and dragInputSV then SetSV(dragInputSV) end
             end)
             table.insert(Library.Connections, sv1)
-            table.insert(Library.Connections, sv3)
-            table.insert(Library.Connections, sv4)
-            local dragH = false
-            local dragInputH
             local h1 = HueBar.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragH = true
-                    dragInputH = input
                     SetH(input)
-                    local hc2
-                    hc2 = input.Changed:Connect(function()
-                        if input.UserInputState == Enum.UserInputState.End then
-                            dragH = false
-                            hc2:Disconnect()
-                        end
-                    end)
+                    BeginDrag(input, SetH)
                 end
-            end)
-            local h3 = UserInputService.InputChanged:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                    if dragH then dragInputH = input end
-                end
-            end)
-            local h4 = RunService.RenderStepped:Connect(function()
-                if dragH and dragInputH then SetH(dragInputH) end
             end)
             table.insert(Library.Connections, h1)
-            table.insert(Library.Connections, h3)
-            table.insert(Library.Connections, h4)
             local pc1 = Preview.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 Section.Container.ZIndex = isOpen and 10 or 1
@@ -3436,8 +3371,6 @@ function Library:CreateWindow(options)
                     SlideFill.Parent = SlideBg
                     Corner(SlideFill, 3)
                     RegisterTheme(SlideFill, "BackgroundColor")
-                    local dragging = false
-                    local dragInput
                     local function Set(input)
                         local r = math.clamp((input.Position.X - SlideBg.AbsolutePosition.X) / SlideBg.AbsoluteSize.X, 0, 1)
                         local raw = min + (max - min) * r
@@ -3452,29 +3385,11 @@ function Library:CreateWindow(options)
                     end
                     local ts1 = SlideBg.InputBegan:Connect(function(i)
                         if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-                            dragging = true
-                            dragInput = i
                             Set(i)
-                            local tsc
-                            tsc = i.Changed:Connect(function()
-                                if i.UserInputState == Enum.UserInputState.End then
-                                    dragging = false
-                                    tsc:Disconnect()
-                                end
-                            end)
+                            BeginDrag(i, Set)
                         end
-                    end)
-                    local ts2 = UserInputService.InputChanged:Connect(function(input)
-                        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                            if dragging then dragInput = input end
-                        end
-                    end)
-                    local ts3 = RunService.RenderStepped:Connect(function()
-                        if dragging and dragInput then Set(dragInput) end
                     end)
                     table.insert(Library.Connections, ts1)
-                    table.insert(Library.Connections, ts2)
-                    table.insert(Library.Connections, ts3)
                     local ts4 = SValue.FocusLost:Connect(function(enter)
                         if enter then
                             local cleanText = string.gsub(SValue.Text, "[^%d.-]", "")
@@ -3919,60 +3834,20 @@ function Library:CreateWindow(options)
                     HCursor.Position = UDim2.new(0, 0, h, 0)
                     Update()
                 end
-                local dragSV = false
-                local dragInputSV
                 local sv1 = SVMap.InputBegan:Connect(function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                        dragSV = true
-                        dragInputSV = input
                         SetSV(input)
-                        local sc2
-                        sc2 = input.Changed:Connect(function()
-                            if input.UserInputState == Enum.UserInputState.End then
-                                dragSV = false
-                                sc2:Disconnect()
-                            end
-                        end)
+                        BeginDrag(input, SetSV)
                     end
-                end)
-                local sv3 = UserInputService.InputChanged:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                        if dragSV then dragInputSV = input end
-                    end
-                end)
-                local sv4 = RunService.RenderStepped:Connect(function()
-                    if dragSV and dragInputSV then SetSV(dragInputSV) end
                 end)
                 table.insert(Library.Connections, sv1)
-                table.insert(Library.Connections, sv3)
-                table.insert(Library.Connections, sv4)
-                local dragH = false
-                local dragInputH
                 local h1 = HueBar.InputBegan:Connect(function(input)
                     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                        dragH = true
-                        dragInputH = input
                         SetH(input)
-                        local hc2
-                        hc2 = input.Changed:Connect(function()
-                            if input.UserInputState == Enum.UserInputState.End then
-                                dragH = false
-                                hc2:Disconnect()
-                            end
-                        end)
+                        BeginDrag(input, SetH)
                     end
-                end)
-                local h3 = UserInputService.InputChanged:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                        if dragH then dragInputH = input end
-                    end
-                end)
-                local h4 = RunService.RenderStepped:Connect(function()
-                    if dragH and dragInputH then SetH(dragInputH) end
                 end)
                 table.insert(Library.Connections, h1)
-                table.insert(Library.Connections, h3)
-                table.insert(Library.Connections, h4)
                 local pc1 = Preview.MouseButton1Click:Connect(function()
                     isOpen = not isOpen
                     Section.Container.ZIndex = isOpen and 10 or 1
