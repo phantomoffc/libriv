@@ -36,6 +36,7 @@ local Config = {
     Brand = "Phantom Softworks",
     Theme = "Phantom Red",
     Keybind = Enum.KeyCode.LeftControl,
+    HideKeybind = Enum.KeyCode.Unknown,
     Duration = 0.3,
     FontMain = Enum.Font.GothamMedium,
     FontBold = Enum.Font.GothamBold,
@@ -178,6 +179,25 @@ local function CollectThemeScreens()
         if g.Name == "PhantomMiniButton" or g.Name == "PhantomTooltip" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" or g.Name == "PhantomEmoteWheel" then
             table.insert(ThemeScreens, g)
         end
+    end
+end
+Library.UIHidden = false
+function Library:SetUIHidden(state)
+    state = state and true or false
+    Library.UIHidden = state
+    CollectThemeScreens()
+    for _, scr in ipairs(ThemeScreens) do
+        if scr and scr.Parent and scr:IsA("ScreenGui") then
+            pcall(function() scr.Enabled = not state end)
+        end
+    end
+    for _, g in pairs(GetParent():GetChildren()) do
+        if g:IsA("ScreenGui") and (g.Name == "PrismaMini" or g.Name == "PrismaKeybinds" or g.Name == "PrismaLoader") then
+            pcall(function() g.Enabled = not state end)
+        end
+    end
+    if Library.HideUIToggle and Library.HideUIToggle.Set then
+        pcall(function() Library.HideUIToggle:Set(state) end)
     end
 end
 local function RepaintColor(oldColor, newColor)
@@ -1746,8 +1766,13 @@ function Library:CreateWindow(options)
     end)
     table.insert(Library.Connections, c8)
     local MenuBindConnection = UserInputService.InputBegan:Connect(function(input, gp)
-        if not gp and input.KeyCode == Config.Keybind then
+        if gp then return end
+        if Library.UIHidden and (input.KeyCode == Config.Keybind or input.KeyCode == Config.HideKeybind) then
+            Library:SetUIHidden(false)
+        elseif input.KeyCode == Config.Keybind then
             task.spawn(ToggleMain)
+        elseif input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode == Config.HideKeybind then
+            Library:SetUIHidden(not Library.UIHidden)
         end
     end)
     table.insert(Library.Connections, MenuBindConnection)
@@ -2102,6 +2127,13 @@ function Library:CreateWindow(options)
                 end
             end
             ToggleObj.UpdateAnim = ToggleAnim
+            ToggleObj.Set = function(_, state)
+                state = state and true or false
+                if toggled == state then return end
+                toggled = state
+                ToggleAnim()
+                callback(toggled)
+            end
             local tlc1 = SubList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                 if toggled then
                     local sc3 = (Library._MainScale and Library._MainScale.Scale > 0) and Library._MainScale.Scale or 1
@@ -2408,6 +2440,26 @@ function Library:CreateWindow(options)
         MenuSec:Toggle("Show Keybind List", "KeybindListToggle", true, "Show the keybind list (quick toggle buttons on mobile)", function(state)
             Library.ShowKeybinds = state
             if Library.RefreshBindList then Library.RefreshBindList() end
+        end)
+        Library.HideUIToggle = MenuSec:Toggle("Fully Hide UI", "FullyHideUI", false, "Hides every part of the UI (menu, mini button, keybind list, notifications). Use the Hide UI keybind to bring it back", function(state)
+            if Library.UIHidden ~= state then Library:SetUIHidden(state) end
+        end)
+        local hideBindBtn
+        hideBindBtn = MenuSec:Button("Hide UI Keybind: " .. tostring(Config.HideKeybind.Name), "Change the fully hide/show key", function()
+            hideBindBtn.Text = "Press any key..."
+            local conn
+            conn = UserInputService.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    if input.KeyCode == Enum.KeyCode.Backspace or input.KeyCode == Enum.KeyCode.Delete then
+                        Config.HideKeybind = Enum.KeyCode.Unknown
+                    elseif input.KeyCode ~= Enum.KeyCode.Escape and input.KeyCode ~= Enum.KeyCode.Unknown then
+                        Config.HideKeybind = input.KeyCode
+                    end
+                    hideBindBtn.Text = "Hide UI Keybind: " .. tostring(Config.HideKeybind.Name)
+                    Library:Notify("Settings", "Hide UI keybind set to " .. tostring(Config.HideKeybind.Name), 2)
+                    conn:Disconnect()
+                end
+            end)
         end)
         MenuSec:ColorPicker("Accent Color", "MenuAccentColor", Theme.Accent, "Change the theme color", function(col)
             Library:UpdateTheme(col)
