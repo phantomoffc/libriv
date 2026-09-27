@@ -196,9 +196,6 @@ function Library:SetUIHidden(state)
             pcall(function() g.Enabled = not state end)
         end
     end
-    if Library.HideUIToggle and Library.HideUIToggle.Set then
-        pcall(function() Library.HideUIToggle:Set(state) end)
-    end
 end
 local function RepaintColor(oldColor, newColor)
     if oldColor == newColor then return end
@@ -2437,13 +2434,6 @@ function Library:CreateWindow(options)
                 end
             end)
         end)
-        MenuSec:Toggle("Show Keybind List", "KeybindListToggle", true, "Show the keybind list (quick toggle buttons on mobile)", function(state)
-            Library.ShowKeybinds = state
-            if Library.RefreshBindList then Library.RefreshBindList() end
-        end)
-        Library.HideUIToggle = MenuSec:Toggle("Fully Hide UI", "FullyHideUI", false, "Hides every part of the UI (menu, mini button, keybind list, notifications). Use the Hide UI keybind to bring it back", function(state)
-            if Library.UIHidden ~= state then Library:SetUIHidden(state) end
-        end)
         local hideBindBtn
         hideBindBtn = MenuSec:Button("Hide UI Keybind: " .. tostring(Config.HideKeybind.Name), "Change the fully hide/show key", function()
             hideBindBtn.Text = "Press any key..."
@@ -2460,6 +2450,10 @@ function Library:CreateWindow(options)
                     conn:Disconnect()
                 end
             end)
+        end)
+        MenuSec:Toggle("Show Keybind List", "KeybindListToggle", true, "Show the keybind list (quick toggle buttons on mobile)", function(state)
+            Library.ShowKeybinds = state
+            if Library.RefreshBindList then Library.RefreshBindList() end
         end)
         MenuSec:ColorPicker("Accent Color", "MenuAccentColor", Theme.Accent, "Change the theme color", function(col)
             Library:UpdateTheme(col)
