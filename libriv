@@ -34,7 +34,7 @@ local Library = {
 local Config = {
     Name = "PHANTOM HUB",
     Brand = "Phantom Softworks",
-    Theme = "Phantom Red",
+    Theme = "Halloween",
     Keybind = Enum.KeyCode.LeftControl,
     HideKeybind = Enum.KeyCode.Unknown,
     Duration = 0.3,
@@ -43,20 +43,21 @@ local Config = {
     ConfigFolder = "PhantomHub"
 }
 if not isfolder(Config.ConfigFolder) then makefolder(Config.ConfigFolder) end
-local Theme = {
-    Background = Color3.fromHex("#080505"),
-    Sidebar = Color3.fromHex("#0c0707"),
-    Container = Color3.fromHex("#140b0b"),
-    Section = Color3.fromHex("#1a0e0e"),
-    Accent = Color3.fromHex("#ff1a1a"),
-    Text = Color3.fromHex("#ffffff"),
-    TextDark = Color3.fromHex("#997373"),
-    Stroke = Color3.fromHex("#2e1717"),
-    Success = Color3.fromHex("#00ff88"),
-    Danger = Color3.fromHex("#ff4444"),
-    Topbar = Color3.fromHex("#120a0a")
-}
+local Theme = {}
 local Themes = {
+    ["Halloween"] = {
+        Background = Color3.fromHex("#0b0710"),
+        Sidebar = Color3.fromHex("#120a18"),
+        Container = Color3.fromHex("#1c1024"),
+        Section = Color3.fromHex("#26142f"),
+        Accent = Color3.fromHex("#ff7a1a"),
+        Text = Color3.fromHex("#ffffff"),
+        TextDark = Color3.fromHex("#a08aa8"),
+        Stroke = Color3.fromHex("#3a2244"),
+        Success = Color3.fromHex("#00ff88"),
+        Danger = Color3.fromHex("#ff4444"),
+        Topbar = Color3.fromHex("#150c1c")
+    },
     ["Phantom Red"] = {
         Background = Color3.fromHex("#080505"),
         Sidebar = Color3.fromHex("#0c0707"),
@@ -136,12 +137,20 @@ local Themes = {
         Topbar = Color3.fromHex("#221a0a")
     }
 }
+for k, v in pairs(Themes[Config.Theme] or Themes["Phantom Red"]) do Theme[k] = v end
 local ThemeKeys = {"Background","Sidebar","Container","Section","Accent","Text","TextDark","Stroke","Success","Danger","Topbar"}
 local ThemeRegistry = {}
 setmetatable(ThemeRegistry, { __mode = "k" })
 local function RegisterTheme(instance, propType)
     ThemeRegistry[instance] = propType
     return instance
+end
+local ThemeHooks = {}
+local function OnThemeChanged(fn)
+    table.insert(ThemeHooks, fn)
+end
+local function RunThemeHooks()
+    for _, fn in ipairs(ThemeHooks) do pcall(fn) end
 end
 local function GetParent()
     if CoreGui then return CoreGui end
@@ -227,6 +236,7 @@ function Library:SetTheme(name)
         if old and new then RepaintColor(old, new) end
     end
     for k, v in pairs(palette) do Theme[k] = v end
+    RunThemeHooks()
     Library:Notify("Theme", "Theme set to " .. name, 2)
     return true
 end
@@ -244,6 +254,7 @@ function Library:UpdateTheme(newColor)
             end
         end
     end
+    RunThemeHooks()
 end
 Library.HubConfig = {
     Name = "Phantom Softworks",
@@ -393,6 +404,7 @@ function Library:Unload()
     Library.Binds = {}
     Library.BindOrder = {}
     Library.SearchIndex = {}
+    table.clear(ThemeHooks)
     for _, g in pairs(GetParent():GetChildren()) do
         if g.Name == "PrismaMini" or g.Name == Config.Name or g.Name == "PrismaKeybinds" or g.Name == "PrismaLoader" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" or g.Name == "PhantomTooltip" or g.Name == "PhantomMiniButton" then
             pcall(function() g:Destroy() end)
@@ -2458,7 +2470,7 @@ function Library:CreateWindow(options)
         MenuSec:ColorPicker("Accent Color", "MenuAccentColor", Theme.Accent, "Change the theme color", function(col)
             Library:UpdateTheme(col)
         end)
-        MenuSec:Dropdown("Theme", "SelectedTheme", {"Phantom Red", "Midnight", "Emerald", "Royal Purple", "Graphite", "Solar"}, "Phantom Red", "Switch the whole UI theme", function(name)
+        MenuSec:Dropdown("Theme", "SelectedTheme", {"Halloween", "Phantom Red", "Midnight", "Emerald", "Royal Purple", "Graphite", "Solar"}, Config.Theme, "Switch the whole UI theme", function(name)
             Library:SetTheme(name)
         end)
         local ConfigSec = WindowObj:CreateRawSection("Configuration", SetPage)
@@ -2903,9 +2915,18 @@ function Library:CreateWindow(options)
             Page.Visible = true
             Tween(Title, {TextColor3 = Theme.Text})
             Tween(TabBtn, {BackgroundTransparency = 0.95, BackgroundColor3 = Theme.Text})
-            if TabBtn:FindFirstChild("ImageLabel") then Tween(TabBtn.ImageLabel, {ImageColor3 = Theme.Text}) end
+            if TabBtn:FindFirstChild("ImageLabel") then Tween(TabBtn.ImageLabel, {ImageColor3 = Theme.Accent}) end
             Tween(Indicator, {BackgroundTransparency = 0})
+            WindowObj._ActiveTabBtn = TabBtn
         end
+        OnThemeChanged(function()
+            if not TabBtn.Parent then return end
+            local active = WindowObj._ActiveTabBtn == TabBtn
+            Title.TextColor3 = active and Theme.Text or Theme.TextDark
+            Indicator.BackgroundColor3 = Theme.Accent
+            local ico = TabBtn:FindFirstChild("ImageLabel")
+            if ico then ico.ImageColor3 = active and Theme.Accent or Theme.TextDark end
+        end)
         Tab.Activate = ActivateTab
         local searchEntry = {Tab = name, Page = Page, Activate = ActivateTab, Sections = {}}
         table.insert(Library.SearchIndex, searchEntry)
@@ -2920,8 +2941,9 @@ function Library:CreateWindow(options)
             Title.TextColor3 = Theme.Text
             TabBtn.BackgroundTransparency = 0.95
             TabBtn.BackgroundColor3 = Theme.Text
-            if TabBtn:FindFirstChild("ImageLabel") then TabBtn.ImageLabel.ImageColor3 = Theme.Text end
+            if TabBtn:FindFirstChild("ImageLabel") then TabBtn.ImageLabel.ImageColor3 = Theme.Accent end
             Indicator.BackgroundTransparency = 0
+            WindowObj._ActiveTabBtn = TabBtn
         end
         local vp = workspace.CurrentCamera.ViewportSize
         local isMobile = vp.X < 700 or (vp.X / math.max(vp.Y, 1)) < 1.3
