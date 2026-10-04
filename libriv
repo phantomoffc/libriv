@@ -417,31 +417,41 @@ local function BuildCobweb(parent, position, size, corner)
     return Web
 end
 local function BuildSpider(parent, xScale, topOffset, length, speed)
-    local Holder = Instance.new("Frame")
-    Holder.Name = "Spider"
-    Holder.Size = UDim2.fromOffset(24, length + 30)
-    Holder.Position = UDim2.new(xScale, -12, 0, topOffset)
-    Holder.BackgroundTransparency = 1
-    Holder.Parent = parent
+    local drop = 10
+    local half = length + drop + 26
+    local Pivot = Instance.new("Frame")
+    Pivot.Name = "Spider"
+    Pivot.Size = UDim2.fromOffset(24, half * 2)
+    Pivot.AnchorPoint = Vector2.new(0.5, 0.5)
+    Pivot.Position = UDim2.new(xScale, 0, 0, topOffset)
+    Pivot.BackgroundTransparency = 1
+    Pivot.Rotation = -6
+    Pivot.Parent = parent
+    local Drop = Instance.new("Frame")
+    Drop.Size = UDim2.fromOffset(24, length)
+    Drop.Position = UDim2.fromOffset(0, half)
+    Drop.BackgroundTransparency = 1
+    Drop.Parent = Pivot
     local Thread = Instance.new("Frame")
-    Thread.Size = UDim2.fromOffset(1, length)
+    Thread.Size = UDim2.new(0, 1, 1, 0)
     Thread.Position = UDim2.fromOffset(12, 0)
     Thread.BackgroundColor3 = Color3.fromHex("#d8cfe0")
     Thread.BackgroundTransparency = 0.5
     Thread.BorderSizePixel = 0
-    Thread.Parent = Holder
+    Thread.Parent = Drop
     local Body = Instance.new("Frame")
     Body.Size = UDim2.fromOffset(24, 24)
-    Body.Position = UDim2.fromOffset(0, length - 4)
+    Body.Position = UDim2.new(0, 0, 1, -4)
     Body.BackgroundTransparency = 1
-    Body.Parent = Holder
+    Body.Parent = Drop
     local dark = Color3.fromHex("#2b1a36")
+    local Legs = {}
     for _, side in ipairs({-1, 1}) do
-        for i, l in ipairs({{-3, -9, -6}, {0, -11, -1}, {3, -11, 4}, {5, -8, 10}}) do
+        for _, l in ipairs({{-3, -9, -6}, {0, -11, -1}, {3, -11, 4}, {5, -8, 10}}) do
             local y0, kx, ky = l[1], l[2], l[3]
             local kneeX, kneeY = 12 + side * 7, 12 + y0 - 4
             DecorLine(Body, 12, 12 + y0 / 2, kneeX, kneeY, dark, 0, 1.5)
-            DecorLine(Body, kneeX, kneeY, 12 - side * kx, 12 + ky, dark, 0, 1.5)
+            table.insert(Legs, DecorLine(Body, kneeX, kneeY, 12 - side * kx, 12 + ky, dark, 0, 1.5))
         end
     end
     local Abdomen = Instance.new("Frame")
@@ -467,10 +477,14 @@ local function BuildSpider(parent, xScale, topOffset, length, speed)
         Eye.Parent = Head
         RegisterTheme(Eye, "BackgroundColor")
     end
-    local drop = 14
-    DecorLoop(Thread, {Size = UDim2.fromOffset(1, length + drop)}, speed)
-    DecorLoop(Body, {Position = UDim2.fromOffset(0, length + drop - 4)}, speed)
-    return Holder
+    DecorLoop(Pivot, {Rotation = 6}, speed)
+    DecorLoop(Drop, {Size = UDim2.fromOffset(24, length + drop)}, speed * 1.7)
+    for i, leg in ipairs(Legs) do
+        local r = leg.Rotation
+        leg.Rotation = r - 5
+        DecorLoop(leg, {Rotation = r + 5}, 0.9 + (i % 4) * 0.15)
+    end
+    return Pivot
 end
 local function BuildHalloweenDecor(win)
     local Decor = Instance.new("Frame")
@@ -481,18 +495,25 @@ local function BuildHalloweenDecor(win)
     Decor.Parent = win
     BuildCobweb(Decor, UDim2.new(1, 0, 0, 34), 90, Vector2.new(1, 0))
     BuildCobweb(Decor, UDim2.new(1, 0, 1, 0), 70, Vector2.new(1, 1))
-    BuildCobweb(Decor, UDim2.new(0, 180, 0, 34), 55, Vector2.new(0, 0))
+    BuildCobweb(Decor, UDim2.new(0, 0, 0, 34), 70, Vector2.new(0, 0))
     BuildSpider(Decor, 0.62, 34, 26, 2.4)
     BuildSpider(Decor, 0.86, 34, 48, 3.1)
+    local GhostFloat = Instance.new("Frame")
+    GhostFloat.Size = UDim2.fromOffset(26, 26)
+    GhostFloat.Position = UDim2.new(1, -100, 1, -48)
+    GhostFloat.BackgroundTransparency = 1
+    GhostFloat.Parent = Decor
     local Ghost = Instance.new("ImageLabel")
-    Ghost.Size = UDim2.fromOffset(26, 26)
-    Ghost.Position = UDim2.new(1, -100, 1, -46)
+    Ghost.Size = UDim2.new(1, 0, 1, 0)
     Ghost.BackgroundTransparency = 1
     Ghost.ImageColor3 = Color3.fromHex("#ffffff")
-    Ghost.ImageTransparency = 0.75
+    Ghost.ImageTransparency = 0.7
+    Ghost.Rotation = -7
     ApplyIcon(Ghost, "ghost")
-    Ghost.Parent = Decor
-    DecorLoop(Ghost, {Position = UDim2.new(1, -100, 1, -58)}, 2.8)
+    Ghost.Parent = GhostFloat
+    DecorLoop(GhostFloat, {Position = UDim2.new(1, -100, 1, -56)}, 3.6)
+    DecorLoop(Ghost, {Rotation = 7}, 2.6)
+    DecorLoop(Ghost, {ImageTransparency = 0.85}, 3.1)
     local Moon = Instance.new("ImageLabel")
     Moon.Size = UDim2.fromOffset(18, 18)
     Moon.Position = UDim2.new(0, 196, 1, -28)
