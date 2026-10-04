@@ -3168,10 +3168,11 @@ function Library:CreateWindow(options)
             Ico.AnchorPoint = Vector2.new(0, 0.5)
             Ico.BackgroundTransparency = 1
             ApplyIcon(Ico, iconId)
-            Ico.ImageColor3 = Theme.TextDark
+            Ico.ImageColor3 = Theme.Accent
+            Ico.ImageTransparency = 0.45
             Ico.Parent = TabBtn
-            local c1 = TabBtn.MouseEnter:Connect(function() if TabBtn.BackgroundTransparency > 0.5 then Tween(Ico, {ImageColor3 = Theme.Text}) end end)
-            local c2 = TabBtn.MouseLeave:Connect(function() if TabBtn.BackgroundTransparency > 0.5 then Tween(Ico, {ImageColor3 = Theme.TextDark}) end end)
+            local c1 = TabBtn.MouseEnter:Connect(function() if TabBtn.BackgroundTransparency > 0.5 then Tween(Ico, {ImageTransparency = 0.15}) end end)
+            local c2 = TabBtn.MouseLeave:Connect(function() if TabBtn.BackgroundTransparency > 0.5 then Tween(Ico, {ImageTransparency = 0.45}) end end)
             table.insert(Library.Connections, c1)
             table.insert(Library.Connections, c2)
         end
@@ -3189,14 +3190,14 @@ function Library:CreateWindow(options)
                 if t:IsA("TextButton") then
                     Tween(t.TextLabel, {TextColor3 = Theme.TextDark})
                     Tween(t, {BackgroundTransparency = 1, BackgroundColor3 = Theme.Background})
-                    if t:FindFirstChild("ImageLabel") then Tween(t.ImageLabel, {ImageColor3 = Theme.TextDark}) end
+                    if t:FindFirstChild("ImageLabel") then Tween(t.ImageLabel, {ImageColor3 = Theme.Accent, ImageTransparency = 0.45}) end
                     Tween(t.Frame, {BackgroundTransparency = 1})
                 end
             end
             Page.Visible = true
             Tween(Title, {TextColor3 = Theme.Text})
             Tween(TabBtn, {BackgroundTransparency = 0.95, BackgroundColor3 = Theme.Text})
-            if TabBtn:FindFirstChild("ImageLabel") then Tween(TabBtn.ImageLabel, {ImageColor3 = Theme.Accent}) end
+            if TabBtn:FindFirstChild("ImageLabel") then Tween(TabBtn.ImageLabel, {ImageColor3 = Theme.Accent, ImageTransparency = 0}) end
             Tween(Indicator, {BackgroundTransparency = 0})
             WindowObj._ActiveTabBtn = TabBtn
         end
@@ -3206,7 +3207,7 @@ function Library:CreateWindow(options)
             Title.TextColor3 = active and Theme.Text or Theme.TextDark
             Indicator.BackgroundColor3 = Theme.Accent
             local ico = TabBtn:FindFirstChild("ImageLabel")
-            if ico then ico.ImageColor3 = active and Theme.Accent or Theme.TextDark end
+            if ico then ico.ImageColor3 = Theme.Accent ico.ImageTransparency = active and 0 or 0.45 end
         end)
         Tab.Activate = ActivateTab
         local searchEntry = {Tab = name, Page = Page, Activate = ActivateTab, Sections = {}}
@@ -3222,7 +3223,7 @@ function Library:CreateWindow(options)
             Title.TextColor3 = Theme.Text
             TabBtn.BackgroundTransparency = 0.95
             TabBtn.BackgroundColor3 = Theme.Text
-            if TabBtn:FindFirstChild("ImageLabel") then TabBtn.ImageLabel.ImageColor3 = Theme.Accent end
+            if TabBtn:FindFirstChild("ImageLabel") then TabBtn.ImageLabel.ImageColor3 = Theme.Accent TabBtn.ImageLabel.ImageTransparency = 0 end
             Indicator.BackgroundTransparency = 0
             WindowObj._ActiveTabBtn = TabBtn
         end
