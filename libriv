@@ -226,6 +226,7 @@ local function RepaintColor(oldColor, newColor)
     end
 end
 Library.Theme = Theme
+Library.CurrentTheme = Themes[Config.Theme] and Config.Theme or "Phantom Red"
 Library.Fonts = {Main = Config.FontMain, Bold = Config.FontBold}
 function Library:SetTheme(name)
     local palette = Themes[name]
@@ -236,6 +237,7 @@ function Library:SetTheme(name)
         if old and new then RepaintColor(old, new) end
     end
     for k, v in pairs(palette) do Theme[k] = v end
+    Library.CurrentTheme = name
     RunThemeHooks()
     Library:Notify("Theme", "Theme set to " .. name, 2)
     return true
@@ -255,6 +257,252 @@ function Library:UpdateTheme(newColor)
         end
     end
     RunThemeHooks()
+end
+local Icons = {
+    ["swords"] = {16898613777, 967, 759},
+    ["sword"] = {16898613777, 710, 967},
+    ["crosshair"] = {16898613044, 453, 869},
+    ["target"] = {16898613869, 514, 771},
+    ["footprints"] = {16898613353, 918, 710},
+    ["person-standing"] = {16898613699, 563, 771},
+    ["eye"] = {16898613353, 771, 563},
+    ["scan-eye"] = {16898613699, 869, 759},
+    ["globe"] = {16898613509, 771, 563},
+    ["earth"] = {16898613353, 0, 771},
+    ["sparkles"] = {16898613777, 918, 49},
+    ["skull"] = {16898613777, 49, 869},
+    ["ghost"] = {16898613353, 869, 906},
+    ["info"] = {16898613509, 612, 869},
+    ["settings"] = {16898613777, 771, 257},
+    ["user"] = {16898613869, 661, 869},
+    ["users"] = {16898613869, 967, 98},
+    ["zap"] = {16898613869, 918, 906},
+    ["shield"] = {16898613777, 869, 0},
+    ["palette"] = {16898613613, 453, 918},
+    ["shirt"] = {16898613777, 98, 771},
+    ["wand-sparkles"] = {16898613869, 453, 918},
+    ["bug"] = {16898612819, 257, 967},
+    ["flame"] = {16898613353, 967, 306},
+    ["gamepad-2"] = {16898613353, 710, 967},
+    ["star"] = {16898613777, 967, 147},
+    ["heart"] = {16898613509, 661, 771},
+    ["crown"] = {16898613044, 404, 918},
+    ["map"] = {16898613613, 306, 771},
+    ["mouse-pointer-click"] = {16898613613, 771, 710},
+    ["bot"] = {16898612819, 869, 98},
+    ["rocket"] = {16898613699, 918, 147},
+    ["wind"] = {16898613869, 820, 857},
+    ["move"] = {16898613613, 453, 820},
+    ["venetian-mask"] = {16898613869, 918, 404},
+    ["fingerprint"] = {16898613353, 563, 918},
+    ["gem"] = {16898613353, 918, 857},
+    ["radar"] = {16898613699, 820, 404},
+    ["bomb"] = {16898612819, 257, 869},
+    ["trophy"] = {16898613869, 820, 147},
+    ["keyboard"] = {16898613509, 453, 820},
+    ["list"] = {16898613509, 869, 808},
+    ["bell"] = {16898612819, 820, 257},
+    ["lock"] = {16898613509, 918, 857},
+    ["key"] = {16898613509, 869, 404},
+    ["music"] = {16898613613, 967, 563},
+    ["camera"] = {16898612819, 967, 563},
+    ["hand"] = {16898613509, 563, 820},
+    ["moon"] = {16898613613, 306, 918},
+    ["sun"] = {16898613777, 967, 453},
+    ["candy"] = {16898612819, 771, 759},
+    ["cat"] = {16898612819, 404, 918},
+    ["flag"] = {16898613353, 98, 918},
+    ["box"] = {16898612819, 771, 196},
+    ["package"] = {16898613613, 918, 196},
+    ["activity"] = {16898612629, 514, 771},
+    ["layers"] = {16898613509, 98, 967},
+    ["sliders-horizontal"] = {16898613777, 820, 355},
+    ["user-cog"] = {16898613869, 147, 869},
+    ["wrench"] = {16898613869, 820, 906},
+    ["hammer"] = {16898613509, 306, 820},
+    ["car"] = {16898612819, 918, 147},
+    ["plane"] = {16898613699, 98, 820},
+    ["search"] = {16898613699, 918, 857},
+}
+local IconPackUrl = "https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/main/icons.lua"
+local IconPack
+local function ResolveIcon(icon)
+    if icon == nil then return nil end
+    if type(icon) == "number" or tonumber(icon) then return "rbxassetid://" .. tostring(icon) end
+    if type(icon) ~= "string" then return nil end
+    if string.find(icon, "://", 1, true) then return icon end
+    local name = (string.gsub(string.lower(icon), "^lucide[%-:]", ""))
+    local e = Icons[name]
+    if not e then
+        if IconPack == nil then
+            IconPack = false
+            pcall(function()
+                local t = loadstring(game:HttpGet(IconPackUrl))()
+                if type(t) == "table" and type(t["48px"]) == "table" then IconPack = t["48px"] end
+            end)
+        end
+        local r = IconPack and IconPack[name]
+        if type(r) == "table" and type(r[3]) == "table" then
+            e = {r[1], r[3][1], r[3][2]}
+            Icons[name] = e
+        end
+    end
+    if not e then return nil end
+    return "rbxassetid://" .. tostring(e[1]), Vector2.new(e[2], e[3]), Vector2.new(48, 48)
+end
+local function ApplyIcon(img, icon)
+    local image, offset, size = ResolveIcon(icon)
+    if not image then return false end
+    img.Image = image
+    if offset then
+        img.ImageRectOffset = offset
+        img.ImageRectSize = size
+    end
+    return true
+end
+Library.Icons = Icons
+function Library:GetIcon(icon)
+    return ResolveIcon(icon)
+end
+local function DecorLine(parent, x1, y1, x2, y2, color, transparency, thickness)
+    local dx, dy = x2 - x1, y2 - y1
+    local f = Instance.new("Frame")
+    f.AnchorPoint = Vector2.new(0.5, 0.5)
+    f.Position = UDim2.fromOffset((x1 + x2) / 2, (y1 + y2) / 2)
+    f.Size = UDim2.fromOffset(math.sqrt(dx * dx + dy * dy), thickness or 1)
+    f.Rotation = math.deg(math.atan2(dy, dx))
+    f.BackgroundColor3 = color
+    f.BackgroundTransparency = transparency or 0
+    f.BorderSizePixel = 0
+    f.Parent = parent
+    return f
+end
+local function DecorLoop(obj, props, time)
+    local t = TweenService:Create(obj, TweenInfo.new(time, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), props)
+    t:Play()
+    return t
+end
+local function BuildCobweb(parent, position, size, corner)
+    local Web = Instance.new("Frame")
+    Web.Name = "Cobweb"
+    Web.Size = UDim2.fromOffset(size, size)
+    Web.Position = position
+    Web.AnchorPoint = Vector2.new(corner.X > 0 and 1 or 0, corner.Y > 0 and 1 or 0)
+    Web.BackgroundTransparency = 1
+    Web.Parent = parent
+    local ox, oy = corner.X > 0 and size or 0, corner.Y > 0 and size or 0
+    local sx, sy = corner.X > 0 and -1 or 1, corner.Y > 0 and -1 or 1
+    local color = Color3.fromHex("#d8cfe0")
+    local spokes = 6
+    local points = {}
+    for i = 0, spokes - 1 do
+        local a = math.rad(90 * i / (spokes - 1))
+        local px, py = ox + sx * math.cos(a) * size, oy + sy * math.sin(a) * size
+        DecorLine(Web, ox, oy, px, py, color, 0.55, 1)
+        points[i] = a
+    end
+    for _, k in ipairs({0.22, 0.42, 0.62, 0.82}) do
+        local r = size * k
+        for i = 0, spokes - 2 do
+            local a1, a2 = points[i], points[i + 1]
+            local sag = 0.9
+            local x1, y1 = ox + sx * math.cos(a1) * r, oy + sy * math.sin(a1) * r
+            local x2, y2 = ox + sx * math.cos(a2) * r, oy + sy * math.sin(a2) * r
+            local am = (a1 + a2) / 2
+            local xm, ym = ox + sx * math.cos(am) * r * sag, oy + sy * math.sin(am) * r * sag
+            DecorLine(Web, x1, y1, xm, ym, color, 0.65, 1)
+            DecorLine(Web, xm, ym, x2, y2, color, 0.65, 1)
+        end
+    end
+    return Web
+end
+local function BuildSpider(parent, xScale, topOffset, length, speed)
+    local Holder = Instance.new("Frame")
+    Holder.Name = "Spider"
+    Holder.Size = UDim2.fromOffset(24, length + 30)
+    Holder.Position = UDim2.new(xScale, -12, 0, topOffset)
+    Holder.BackgroundTransparency = 1
+    Holder.Parent = parent
+    local Thread = Instance.new("Frame")
+    Thread.Size = UDim2.fromOffset(1, length)
+    Thread.Position = UDim2.fromOffset(12, 0)
+    Thread.BackgroundColor3 = Color3.fromHex("#d8cfe0")
+    Thread.BackgroundTransparency = 0.5
+    Thread.BorderSizePixel = 0
+    Thread.Parent = Holder
+    local Body = Instance.new("Frame")
+    Body.Size = UDim2.fromOffset(24, 24)
+    Body.Position = UDim2.fromOffset(0, length - 4)
+    Body.BackgroundTransparency = 1
+    Body.Parent = Holder
+    local dark = Color3.fromHex("#2b1a36")
+    for _, side in ipairs({-1, 1}) do
+        for i, l in ipairs({{-3, -9, -6}, {0, -11, -1}, {3, -11, 4}, {5, -8, 10}}) do
+            local y0, kx, ky = l[1], l[2], l[3]
+            local kneeX, kneeY = 12 + side * 7, 12 + y0 - 4
+            DecorLine(Body, 12, 12 + y0 / 2, kneeX, kneeY, dark, 0, 1.5)
+            DecorLine(Body, kneeX, kneeY, 12 - side * kx, 12 + ky, dark, 0, 1.5)
+        end
+    end
+    local Abdomen = Instance.new("Frame")
+    Abdomen.Size = UDim2.fromOffset(10, 12)
+    Abdomen.Position = UDim2.fromOffset(7, 9)
+    Abdomen.BackgroundColor3 = dark
+    Abdomen.BorderSizePixel = 0
+    Abdomen.Parent = Body
+    Corner(Abdomen, 6)
+    local Head = Instance.new("Frame")
+    Head.Size = UDim2.fromOffset(7, 7)
+    Head.Position = UDim2.fromOffset(8.5, 4)
+    Head.BackgroundColor3 = dark
+    Head.BorderSizePixel = 0
+    Head.Parent = Body
+    Corner(Head, 4)
+    for _, ex in ipairs({1.5, 4}) do
+        local Eye = Instance.new("Frame")
+        Eye.Size = UDim2.fromOffset(1.5, 1.5)
+        Eye.Position = UDim2.fromOffset(ex, 3)
+        Eye.BackgroundColor3 = Theme.Accent
+        Eye.BorderSizePixel = 0
+        Eye.Parent = Head
+        RegisterTheme(Eye, "BackgroundColor")
+    end
+    local drop = 14
+    DecorLoop(Thread, {Size = UDim2.fromOffset(1, length + drop)}, speed)
+    DecorLoop(Body, {Position = UDim2.fromOffset(0, length + drop - 4)}, speed)
+    return Holder
+end
+local function BuildHalloweenDecor(win)
+    local Decor = Instance.new("Frame")
+    Decor.Name = "HalloweenDecor"
+    Decor.Size = UDim2.new(1, 0, 1, 0)
+    Decor.BackgroundTransparency = 1
+    Decor.ZIndex = 15
+    Decor.Parent = win
+    BuildCobweb(Decor, UDim2.new(1, 0, 0, 34), 90, Vector2.new(1, 0))
+    BuildCobweb(Decor, UDim2.new(1, 0, 1, 0), 70, Vector2.new(1, 1))
+    BuildCobweb(Decor, UDim2.new(0, 180, 0, 34), 55, Vector2.new(0, 0))
+    BuildSpider(Decor, 0.62, 34, 26, 2.4)
+    BuildSpider(Decor, 0.86, 34, 48, 3.1)
+    local Ghost = Instance.new("ImageLabel")
+    Ghost.Size = UDim2.fromOffset(26, 26)
+    Ghost.Position = UDim2.new(1, -100, 1, -46)
+    Ghost.BackgroundTransparency = 1
+    Ghost.ImageColor3 = Color3.fromHex("#ffffff")
+    Ghost.ImageTransparency = 0.75
+    ApplyIcon(Ghost, "ghost")
+    Ghost.Parent = Decor
+    DecorLoop(Ghost, {Position = UDim2.new(1, -100, 1, -58)}, 2.8)
+    local Moon = Instance.new("ImageLabel")
+    Moon.Size = UDim2.fromOffset(18, 18)
+    Moon.Position = UDim2.new(0, 196, 1, -28)
+    Moon.BackgroundTransparency = 1
+    Moon.ImageColor3 = Theme.Accent
+    Moon.ImageTransparency = 0.6
+    ApplyIcon(Moon, "moon")
+    Moon.Parent = Decor
+    RegisterTheme(Moon, "ImageColor")
+    return Decor
 end
 Library.HubConfig = {
     Name = "Phantom Softworks",
@@ -1551,6 +1799,18 @@ function Library:CreateWindow(options)
     Library._IsSettings = false
     CreateTopbar(MainWindow, false)
     CreateTopbar(SettingsWindow, true)
+    local function RefreshThemeDecor()
+        for _, win in ipairs({MainWindow, SettingsWindow}) do
+            local d = win:FindFirstChild("HalloweenDecor")
+            if Library.CurrentTheme == "Halloween" then
+                if not d then BuildHalloweenDecor(win) end
+            elseif d then
+                d:Destroy()
+            end
+        end
+    end
+    OnThemeChanged(RefreshThemeDecor)
+    RefreshThemeDecor()
     local Resizer = Instance.new("Frame")
     Resizer.Size = UDim2.new(0, 20, 0, 20)
     Resizer.Position = UDim2.new(1, 0, 1, 0)
@@ -2886,7 +3146,7 @@ function Library:CreateWindow(options)
             Ico.Position = UDim2.new(0, 8, 0.5, 0)
             Ico.AnchorPoint = Vector2.new(0, 0.5)
             Ico.BackgroundTransparency = 1
-            if tonumber(iconId) then Ico.Image = "rbxassetid://" .. iconId else Ico.Image = iconId end
+            ApplyIcon(Ico, iconId)
             Ico.ImageColor3 = Theme.TextDark
             Ico.Parent = TabBtn
             local c1 = TabBtn.MouseEnter:Connect(function() if TabBtn.BackgroundTransparency > 0.5 then Tween(Ico, {ImageColor3 = Theme.Text}) end end)
