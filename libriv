@@ -185,7 +185,7 @@ local function CollectThemeScreens()
     if Library.ScreenGui then table.insert(ThemeScreens, Library.ScreenGui) end
     if Library.KeybindList then table.insert(ThemeScreens, Library.KeybindList.Screen) end
     for _, g in pairs(GetParent():GetChildren()) do
-        if g.Name == "PhantomMiniButton" or g.Name == "PhantomTooltip" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" or g.Name == "PhantomEmoteWheel" then
+        if g.Name == "PhantomMiniButton" or g.Name == "PhantomTooltip" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" or g.Name == "PhantomEmoteWheel" or g.Name == "PhantomConsole" then
             table.insert(ThemeScreens, g)
         end
     end
@@ -738,8 +738,9 @@ function Library:Unload()
     Library.SearchIndex = {}
     table.clear(ThemeHooks)
     table.clear(LogListeners)
+    Library.Console = nil
     for _, g in pairs(GetParent():GetChildren()) do
-        if g.Name == "PrismaMini" or g.Name == Config.Name or g.Name == "PrismaKeybinds" or g.Name == "PrismaLoader" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" or g.Name == "PhantomTooltip" or g.Name == "PhantomMiniButton" then
+        if g.Name == "PrismaMini" or g.Name == Config.Name or g.Name == "PrismaKeybinds" or g.Name == "PrismaLoader" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" or g.Name == "PhantomTooltip" or g.Name == "PhantomMiniButton" or g.Name == "PhantomConsole" then
             pcall(function() g:Destroy() end)
         end
     end
@@ -764,6 +765,7 @@ local IgnoredFlags = {
     MenuAccentColor = true,
     SelectedTheme = true,
     KeybindListToggle = true,
+    ConsoleToggle = true,
 }
 local function SerializeConfigValue(v)
     if typeof(v) == "Color3" then
@@ -1097,6 +1099,250 @@ function Library:CreateKeybindList()
     table.insert(Library.Connections, c1)
     Library.KeybindList = {Frame = Frame, Container = Container, Screen = Screen, Title = Title}
     Frame.Visible = false
+end
+function Library:CreateConsole()
+    if Library.Console then return Library.Console end
+    local mobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    local HEADER_H = 30
+    local width, height = mobile and 320 or 440, mobile and 200 or 250
+    local LevelNames = {Info = "Info", Warning = "Warn", Error = "Error"}
+    local logRows, rowOrder, open = {}, 0, true
+    local function EscapeRich(str)
+        return (str:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
+    end
+    local Screen = Instance.new("ScreenGui")
+    Screen.Name = "PhantomConsole"
+    Screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    Screen.ResetOnSpawn = false
+    Screen.Enabled = not Library.UIHidden
+    Screen.Parent = GetParent()
+    local Frame = Instance.new("Frame")
+    Frame.Name = "Console"
+    Frame.Size = UDim2.new(0, width, 0, height)
+    Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    Frame.Position = UDim2.new(0, 20 + width / 2, 1, -(20 + height / 2))
+    Frame.BackgroundColor3 = Theme.Background
+    Frame.BorderSizePixel = 0
+    Frame.Active = true
+    Frame.ClipsDescendants = true
+    Frame.Visible = false
+    Frame.Parent = Screen
+    Corner(Frame, 6)
+    Stroke(Frame, Theme.Stroke, 1, 0)
+    local Header = Instance.new("Frame")
+    Header.Name = "Header"
+    Header.Size = UDim2.new(1, 0, 0, HEADER_H)
+    Header.BackgroundColor3 = Theme.Topbar
+    Header.BorderSizePixel = 0
+    Header.Active = true
+    Header.Parent = Frame
+    Corner(Header, 6)
+    local HeaderFill = Instance.new("Frame")
+    HeaderFill.Size = UDim2.new(1, 0, 0, 8)
+    HeaderFill.Position = UDim2.new(0, 0, 1, -8)
+    HeaderFill.BackgroundColor3 = Theme.Topbar
+    HeaderFill.BorderSizePixel = 0
+    HeaderFill.Parent = Header
+    local Divider = Instance.new("Frame")
+    Divider.Size = UDim2.new(1, 0, 0, 1)
+    Divider.Position = UDim2.new(0, 0, 0, HEADER_H)
+    Divider.BackgroundColor3 = Theme.Stroke
+    Divider.BorderSizePixel = 0
+    Divider.Parent = Frame
+    MakeDraggable(Header, Frame)
+    local TitleRow = Instance.new("Frame")
+    TitleRow.Size = UDim2.new(0.5, 0, 1, 0)
+    TitleRow.Position = UDim2.new(0, 10, 0, 0)
+    TitleRow.BackgroundTransparency = 1
+    TitleRow.Parent = Header
+    local TitleList = Instance.new("UIListLayout")
+    TitleList.FillDirection = Enum.FillDirection.Horizontal
+    TitleList.VerticalAlignment = Enum.VerticalAlignment.Center
+    TitleList.SortOrder = Enum.SortOrder.LayoutOrder
+    TitleList.Padding = UDim.new(0, 6)
+    TitleList.Parent = TitleRow
+    local Title = Instance.new("TextLabel")
+    Title.AutomaticSize = Enum.AutomaticSize.X
+    Title.Size = UDim2.new(0, 0, 1, 0)
+    Title.BackgroundTransparency = 1
+    Title.Text = "Console"
+    Title.Font = Config.FontBold
+    Title.TextSize = 13
+    Title.TextColor3 = Theme.Text
+    Title.LayoutOrder = 1
+    Title.Parent = TitleRow
+    local CountLabel = Instance.new("TextLabel")
+    CountLabel.AutomaticSize = Enum.AutomaticSize.X
+    CountLabel.Size = UDim2.new(0, 0, 1, 0)
+    CountLabel.BackgroundTransparency = 1
+    CountLabel.Text = "0"
+    CountLabel.Font = Config.FontMain
+    CountLabel.TextSize = 12
+    CountLabel.TextColor3 = Theme.TextDark
+    CountLabel.LayoutOrder = 2
+    CountLabel.Parent = TitleRow
+    local ArrowBtn = Instance.new("ImageButton")
+    ArrowBtn.Size = UDim2.new(0, 22, 0, 22)
+    ArrowBtn.Position = UDim2.new(1, -6, 0.5, 0)
+    ArrowBtn.AnchorPoint = Vector2.new(1, 0.5)
+    ArrowBtn.BackgroundTransparency = 1
+    ArrowBtn.Image = "rbxassetid://10709790948"
+    ArrowBtn.ImageColor3 = Theme.TextDark
+    ArrowBtn.AutoButtonColor = false
+    ArrowBtn.Parent = Header
+    local function LinkButton(text, xOffset)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 36, 1, 0)
+        btn.Position = UDim2.new(1, xOffset, 0, 0)
+        btn.AnchorPoint = Vector2.new(1, 0)
+        btn.BackgroundTransparency = 1
+        btn.Text = text
+        btn.Font = Config.FontBold
+        btn.TextSize = 12
+        btn.TextColor3 = Theme.TextDark
+        btn.TextXAlignment = Enum.TextXAlignment.Right
+        btn.AutoButtonColor = false
+        btn.Parent = Header
+        table.insert(Library.Connections, btn.MouseEnter:Connect(function() Tween(btn, {TextColor3 = Theme.Text}, 0.15) end))
+        table.insert(Library.Connections, btn.MouseLeave:Connect(function() Tween(btn, {TextColor3 = Theme.TextDark}, 0.15) end))
+        return btn
+    end
+    local ClearBtn = LinkButton("Clear", -34)
+    local CopyBtn = LinkButton("Copy", -78)
+    local LogBox = Instance.new("ScrollingFrame")
+    LogBox.Size = UDim2.new(1, 0, 1, -(HEADER_H + 1))
+    LogBox.Position = UDim2.new(0, 0, 0, HEADER_H + 1)
+    LogBox.BackgroundColor3 = Theme.Background
+    LogBox.BorderSizePixel = 0
+    LogBox.ScrollBarThickness = 2
+    LogBox.ScrollBarImageColor3 = Theme.Accent
+    LogBox.ScrollBarImageTransparency = 0
+    LogBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    LogBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    LogBox.ScrollingDirection = Enum.ScrollingDirection.Y
+    LogBox.Parent = Frame
+    RegisterTheme(LogBox, "ScrollBar")
+    Corner(LogBox, 6)
+    local LogPad = Instance.new("UIPadding")
+    LogPad.PaddingTop = UDim.new(0, 6)
+    LogPad.PaddingBottom = UDim.new(0, 14)
+    LogPad.PaddingLeft = UDim.new(0, 10)
+    LogPad.PaddingRight = UDim.new(0, 12)
+    LogPad.Parent = LogBox
+    local LogList = Instance.new("UIListLayout")
+    LogList.SortOrder = Enum.SortOrder.LayoutOrder
+    LogList.Padding = UDim.new(0, 3)
+    LogList.Parent = LogBox
+    local EmptyLabel = Instance.new("TextLabel")
+    EmptyLabel.Size = UDim2.new(1, 0, 0, 18)
+    EmptyLabel.BackgroundTransparency = 1
+    EmptyLabel.Text = "No output yet"
+    EmptyLabel.Font = Config.FontMain
+    EmptyLabel.TextSize = 13
+    EmptyLabel.TextColor3 = Theme.TextDark
+    EmptyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    EmptyLabel.LayoutOrder = 0
+    EmptyLabel.Parent = LogBox
+    local Resizer = Instance.new("TextButton")
+    Resizer.Size = UDim2.new(0, 16, 0, 16)
+    Resizer.Position = UDim2.new(1, 0, 1, 0)
+    Resizer.AnchorPoint = Vector2.new(1, 1)
+    Resizer.BackgroundTransparency = 1
+    Resizer.Text = "◢"
+    Resizer.TextSize = 12
+    Resizer.TextColor3 = Theme.TextDark
+    Resizer.AutoButtonColor = false
+    Resizer.ZIndex = 5
+    Resizer.Parent = Frame
+    MakeResizable(Resizer, Frame, Vector2.new(260, 120))
+    table.insert(Library.Connections, Resizer.MouseEnter:Connect(function() Tween(Resizer, {TextColor3 = Theme.Accent}, 0.15) end))
+    table.insert(Library.Connections, Resizer.MouseLeave:Connect(function() Tween(Resizer, {TextColor3 = Theme.TextDark}, 0.15) end))
+    local function UpdateCount()
+        CountLabel.Text = tostring(#Library.Logs)
+    end
+    local function AddLogRow(entry)
+        rowOrder = rowOrder + 1
+        local Line = Instance.new("TextLabel")
+        Line.Name = "LogLine"
+        Line.Size = UDim2.new(1, 0, 0, 0)
+        Line.AutomaticSize = Enum.AutomaticSize.Y
+        Line.BackgroundTransparency = 1
+        Line.RichText = true
+        Line.Text = '<font color="#' .. Theme.TextDark:ToHex() .. '">[' .. entry.Time .. ']</font> ['
+            .. LevelNames[entry.Level] .. '] ' .. EscapeRich(entry.Text)
+        Line.Font = Config.FontMain
+        Line.TextSize = 13
+        Line.TextColor3 = LogColor(entry.Level)
+        Line.TextWrapped = true
+        Line.TextXAlignment = Enum.TextXAlignment.Left
+        Line.TextYAlignment = Enum.TextYAlignment.Top
+        Line.LayoutOrder = rowOrder
+        Line.Parent = LogBox
+        table.insert(logRows, Line)
+        if #logRows > Library.LogLimit then
+            local old = table.remove(logRows, 1)
+            if old then old:Destroy() end
+        end
+        EmptyLabel.Visible = false
+        UpdateCount()
+        task.defer(function()
+            if LogBox.Parent then LogBox.CanvasPosition = Vector2.new(0, LogBox.AbsoluteCanvasSize.Y) end
+        end)
+    end
+    local function RebuildConsole()
+        for _, row in ipairs(logRows) do row:Destroy() end
+        table.clear(logRows)
+        for _, entry in ipairs(Library.Logs) do AddLogRow(entry) end
+        EmptyLabel.Visible = #logRows == 0
+        UpdateCount()
+    end
+    local expandedHeight = height
+    local function SetOpen(state)
+        open = state
+        if open then
+            HeaderFill.Visible = true
+            Divider.Visible = true
+            Resizer.Visible = true
+        else
+            expandedHeight = Frame.Size.Y.Offset
+            Resizer.Visible = false
+        end
+        Tween(ArrowBtn, {Rotation = open and 0 or -90}, 0.2)
+        local t = Tween(Frame, {Size = UDim2.new(0, Frame.Size.X.Offset, 0, open and expandedHeight or HEADER_H)}, 0.25)
+        if not open then
+            t.Completed:Connect(function()
+                if not open then
+                    HeaderFill.Visible = false
+                    Divider.Visible = false
+                end
+            end)
+        end
+    end
+    table.insert(Library.Connections, ArrowBtn.MouseButton1Click:Connect(function() SetOpen(not open) end))
+    table.insert(Library.Connections, ArrowBtn.MouseEnter:Connect(function() Tween(ArrowBtn, {ImageColor3 = Theme.Text}, 0.15) end))
+    table.insert(Library.Connections, ArrowBtn.MouseLeave:Connect(function() Tween(ArrowBtn, {ImageColor3 = Theme.TextDark}, 0.15) end))
+    table.insert(Library.Connections, CopyBtn.MouseButton1Click:Connect(function()
+        local lines = {}
+        for _, entry in ipairs(Library.Logs) do
+            table.insert(lines, "[" .. entry.Time .. "] [" .. LevelNames[entry.Level] .. "] " .. entry.Text)
+        end
+        local ok = pcall(function() setclipboard(table.concat(lines, "\n")) end)
+        if ok then Library:Notify("Console", "Logs copied", 2) else Library:Notify("Console", "Clipboard not supported", 2) end
+    end))
+    table.insert(Library.Connections, ClearBtn.MouseButton1Click:Connect(function()
+        Library:ClearLogs()
+    end))
+    table.insert(LogListeners, function(entry)
+        if entry == nil then RebuildConsole() else AddLogRow(entry) end
+    end)
+    OnThemeChanged(RebuildConsole)
+    RebuildConsole()
+    Library.Console = {Screen = Screen, Frame = Frame, SetOpen = SetOpen}
+    return Library.Console
+end
+function Library:SetConsoleVisible(state)
+    local console = Library.Console or Library:CreateConsole()
+    console.Frame.Visible = state and true or false
 end
 local function IsTouchOnly()
     return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -2389,6 +2635,7 @@ function Library:CreateWindow(options)
             return Btn
         end
         function Section:Toggle(text, flag, default, tooltipText, callback)
+            local quietCallback = WrapCallback(text, callback, false)
             callback = WrapCallback(text, callback, true)
             Library.Defaults[flag] = default or false
             local toggled = Library.Flags[flag]
@@ -2402,7 +2649,7 @@ function Library:CreateWindow(options)
                     toggled = val
                     if ToggleObj.UpdateAnim then ToggleObj.UpdateAnim() end
                     Library.Unsaved = true
-                    callback(val)
+                    quietCallback(val)
                 end
             end
             local Btn = Instance.new("TextButton")
@@ -2490,7 +2737,7 @@ function Library:CreateWindow(options)
                 if toggled == state then return end
                 toggled = state
                 ToggleAnim()
-                callback(toggled)
+                quietCallback(toggled)
             end
             local tlc1 = SubList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                 if toggled then
@@ -2815,6 +3062,9 @@ function Library:CreateWindow(options)
         MenuSec:Toggle("Show Keybind List", "KeybindListToggle", true, "Show the keybind list (quick toggle buttons on mobile)", function(state)
             Library.ShowKeybinds = state
             if Library.RefreshBindList then Library.RefreshBindList() end
+        end)
+        MenuSec:Toggle("Show Console", "ConsoleToggle", false, "Show the console window (info / warnings / errors)", function(state)
+            Library:SetConsoleVisible(state)
         end)
         MenuSec:ColorPicker("Accent Color", "MenuAccentColor", Theme.Accent, "Change the theme color", function(col)
             Library:UpdateTheme(col)
@@ -3198,215 +3448,6 @@ function Library:CreateWindow(options)
         table.insert(Library.Connections, c24)
         table.insert(Library.Connections, c25)
         table.insert(Library.Connections, c26)
-        local ConsoleSec = WindowObj:CreateRawSection("Console", SetPage)
-        local ConsoleContent = ConsoleSec.Container:FindFirstChild("Content")
-        local logRows = {}
-        local rowOrder = 0
-        local consoleOpen = true
-        local HEADER_H, PANEL_H = 30, 232
-        local LevelNames = {Info = "Info", Warning = "Warn", Error = "Error"}
-        local function EscapeRich(str)
-            return (str:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
-        end
-        local Panel = Instance.new("Frame")
-        Panel.Name = "ConsolePanel"
-        Panel.Size = UDim2.new(1, 0, 0, PANEL_H)
-        Panel.BackgroundColor3 = Theme.Background
-        Panel.BorderSizePixel = 0
-        Panel.ClipsDescendants = true
-        Panel.Parent = ConsoleContent
-        Corner(Panel, 4)
-        Stroke(Panel, Theme.Stroke, 1, 0)
-        local Header = Instance.new("TextButton")
-        Header.Name = "Header"
-        Header.Size = UDim2.new(1, 0, 0, HEADER_H)
-        Header.BackgroundColor3 = Theme.Topbar
-        Header.BorderSizePixel = 0
-        Header.AutoButtonColor = false
-        Header.Text = ""
-        Header.Parent = Panel
-        Corner(Header, 4)
-        local HeaderFill = Instance.new("Frame")
-        HeaderFill.Size = UDim2.new(1, 0, 0, 6)
-        HeaderFill.Position = UDim2.new(0, 0, 1, -6)
-        HeaderFill.BackgroundColor3 = Theme.Topbar
-        HeaderFill.BorderSizePixel = 0
-        HeaderFill.Parent = Header
-        local Divider = Instance.new("Frame")
-        Divider.Size = UDim2.new(1, 0, 0, 1)
-        Divider.Position = UDim2.new(0, 0, 0, HEADER_H)
-        Divider.BackgroundColor3 = Theme.Stroke
-        Divider.BorderSizePixel = 0
-        Divider.Parent = Panel
-        local TitleRow = Instance.new("Frame")
-        TitleRow.Size = UDim2.new(0.5, 0, 1, 0)
-        TitleRow.Position = UDim2.new(0, 10, 0, 0)
-        TitleRow.BackgroundTransparency = 1
-        TitleRow.Parent = Header
-        local TitleList = Instance.new("UIListLayout")
-        TitleList.FillDirection = Enum.FillDirection.Horizontal
-        TitleList.VerticalAlignment = Enum.VerticalAlignment.Center
-        TitleList.SortOrder = Enum.SortOrder.LayoutOrder
-        TitleList.Padding = UDim.new(0, 6)
-        TitleList.Parent = TitleRow
-        local HeaderTitle = Instance.new("TextLabel")
-        HeaderTitle.AutomaticSize = Enum.AutomaticSize.X
-        HeaderTitle.Size = UDim2.new(0, 0, 1, 0)
-        HeaderTitle.BackgroundTransparency = 1
-        HeaderTitle.Text = "Output"
-        HeaderTitle.Font = Config.FontBold
-        HeaderTitle.TextSize = 13
-        HeaderTitle.TextColor3 = Theme.Text
-        HeaderTitle.LayoutOrder = 1
-        HeaderTitle.Parent = TitleRow
-        local CountLabel = Instance.new("TextLabel")
-        CountLabel.AutomaticSize = Enum.AutomaticSize.X
-        CountLabel.Size = UDim2.new(0, 0, 1, 0)
-        CountLabel.BackgroundTransparency = 1
-        CountLabel.Text = "0"
-        CountLabel.Font = Config.FontMain
-        CountLabel.TextSize = 12
-        CountLabel.TextColor3 = Theme.TextDark
-        CountLabel.LayoutOrder = 2
-        CountLabel.Parent = TitleRow
-        local Arrow = Instance.new("ImageLabel")
-        Arrow.Image = "rbxassetid://10709790948"
-        Arrow.Size = UDim2.new(0, 16, 0, 16)
-        Arrow.Position = UDim2.new(1, -10, 0.5, 0)
-        Arrow.AnchorPoint = Vector2.new(1, 0.5)
-        Arrow.BackgroundTransparency = 1
-        Arrow.ImageColor3 = Theme.TextDark
-        Arrow.Parent = Header
-        local function LinkButton(text, xOffset)
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(0, 36, 1, 0)
-            btn.Position = UDim2.new(1, xOffset, 0, 0)
-            btn.AnchorPoint = Vector2.new(1, 0)
-            btn.BackgroundTransparency = 1
-            btn.Text = text
-            btn.Font = Config.FontBold
-            btn.TextSize = 12
-            btn.TextColor3 = Theme.TextDark
-            btn.TextXAlignment = Enum.TextXAlignment.Right
-            btn.AutoButtonColor = false
-            btn.Parent = Header
-            table.insert(Library.Connections, btn.MouseEnter:Connect(function() Tween(btn, {TextColor3 = Theme.Text}, 0.15) end))
-            table.insert(Library.Connections, btn.MouseLeave:Connect(function() Tween(btn, {TextColor3 = Theme.TextDark}, 0.15) end))
-            return btn
-        end
-        local ClearBtn = LinkButton("Clear", -36)
-        local CopyBtn = LinkButton("Copy", -80)
-        local LogBox = Instance.new("ScrollingFrame")
-        LogBox.Size = UDim2.new(1, 0, 1, -(HEADER_H + 1))
-        LogBox.Position = UDim2.new(0, 0, 0, HEADER_H + 1)
-        LogBox.BackgroundColor3 = Theme.Background
-        LogBox.BorderSizePixel = 0
-        LogBox.ScrollBarThickness = 2
-        LogBox.ScrollBarImageColor3 = Theme.Accent
-        LogBox.ScrollBarImageTransparency = 0
-        LogBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        LogBox.CanvasSize = UDim2.new(0, 0, 0, 0)
-        LogBox.ScrollingDirection = Enum.ScrollingDirection.Y
-        LogBox.Parent = Panel
-        RegisterTheme(LogBox, "ScrollBar")
-        Corner(LogBox, 4)
-        local LogPad = Instance.new("UIPadding")
-        LogPad.PaddingTop = UDim.new(0, 6)
-        LogPad.PaddingBottom = UDim.new(0, 6)
-        LogPad.PaddingLeft = UDim.new(0, 10)
-        LogPad.PaddingRight = UDim.new(0, 10)
-        LogPad.Parent = LogBox
-        local LogList = Instance.new("UIListLayout")
-        LogList.SortOrder = Enum.SortOrder.LayoutOrder
-        LogList.Padding = UDim.new(0, 3)
-        LogList.Parent = LogBox
-        local EmptyLabel = Instance.new("TextLabel")
-        EmptyLabel.Size = UDim2.new(1, 0, 0, 18)
-        EmptyLabel.BackgroundTransparency = 1
-        EmptyLabel.Text = "No output yet"
-        EmptyLabel.Font = Config.FontMain
-        EmptyLabel.TextSize = 13
-        EmptyLabel.TextColor3 = Theme.TextDark
-        EmptyLabel.TextXAlignment = Enum.TextXAlignment.Left
-        EmptyLabel.LayoutOrder = 0
-        EmptyLabel.Parent = LogBox
-        local function UpdateCount()
-            CountLabel.Text = tostring(#Library.Logs)
-        end
-        local function AddLogRow(entry)
-            rowOrder = rowOrder + 1
-            local Line = Instance.new("TextLabel")
-            Line.Name = "LogLine"
-            Line.Size = UDim2.new(1, 0, 0, 0)
-            Line.AutomaticSize = Enum.AutomaticSize.Y
-            Line.BackgroundTransparency = 1
-            Line.RichText = true
-            Line.Text = '<font color="#' .. Theme.TextDark:ToHex() .. '">[' .. entry.Time .. ']</font> ['
-                .. LevelNames[entry.Level] .. '] ' .. EscapeRich(entry.Text)
-            Line.Font = Config.FontMain
-            Line.TextSize = 13
-            Line.TextColor3 = LogColor(entry.Level)
-            Line.TextWrapped = true
-            Line.TextXAlignment = Enum.TextXAlignment.Left
-            Line.TextYAlignment = Enum.TextYAlignment.Top
-            Line.LayoutOrder = rowOrder
-            Line.Parent = LogBox
-            table.insert(logRows, Line)
-            if #logRows > Library.LogLimit then
-                local old = table.remove(logRows, 1)
-                if old then old:Destroy() end
-            end
-            EmptyLabel.Visible = false
-            UpdateCount()
-            task.defer(function()
-                if LogBox.Parent then LogBox.CanvasPosition = Vector2.new(0, LogBox.AbsoluteCanvasSize.Y) end
-            end)
-        end
-        local function RebuildConsole()
-            for _, row in ipairs(logRows) do row:Destroy() end
-            table.clear(logRows)
-            for _, entry in ipairs(Library.Logs) do AddLogRow(entry) end
-            EmptyLabel.Visible = #logRows == 0
-            UpdateCount()
-        end
-        local function SetConsoleOpen(open)
-            consoleOpen = open
-            if open then
-                HeaderFill.Visible = true
-                Divider.Visible = true
-            end
-            Tween(Arrow, {Rotation = open and 0 or -90}, 0.2)
-            local t = Tween(Panel, {Size = UDim2.new(1, 0, 0, open and PANEL_H or HEADER_H)}, 0.25)
-            if not open and t then
-                t.Completed:Connect(function()
-                    if not consoleOpen then
-                        HeaderFill.Visible = false
-                        Divider.Visible = false
-                    end
-                end)
-            end
-        end
-        table.insert(Library.Connections, Header.MouseButton1Click:Connect(function()
-            SetConsoleOpen(not consoleOpen)
-        end))
-        table.insert(Library.Connections, Header.MouseEnter:Connect(function() Tween(Arrow, {ImageColor3 = Theme.Text}, 0.15) end))
-        table.insert(Library.Connections, Header.MouseLeave:Connect(function() Tween(Arrow, {ImageColor3 = Theme.TextDark}, 0.15) end))
-        table.insert(Library.Connections, CopyBtn.MouseButton1Click:Connect(function()
-            local lines = {}
-            for _, entry in ipairs(Library.Logs) do
-                table.insert(lines, "[" .. entry.Time .. "] [" .. LevelNames[entry.Level] .. "] " .. entry.Text)
-            end
-            local ok = pcall(function() setclipboard(table.concat(lines, "\n")) end)
-            if ok then Library:Notify("Console", "Logs copied", 2) else Library:Notify("Console", "Clipboard not supported", 2) end
-        end))
-        table.insert(Library.Connections, ClearBtn.MouseButton1Click:Connect(function()
-            Library:ClearLogs()
-        end))
-        table.insert(LogListeners, function(entry)
-            if entry == nil then RebuildConsole() else AddLogRow(entry) end
-        end)
-        OnThemeChanged(RebuildConsole)
-        RebuildConsole()
     end
     PopulateSettings()
     function WindowObj:Tab(name, iconId)
@@ -3662,6 +3703,7 @@ function Library:CreateWindow(options)
                 UpdateHeight()
             end
             function Section:Toggle(text, flag, default, tooltipText, callback, bindable)
+                local quietCallback = WrapCallback(text, callback, false)
                 callback = WrapCallback(text, callback, true)
                 Library.Defaults[flag] = default or false
                 local toggled = Library.Flags[flag]
@@ -3675,7 +3717,7 @@ function Library:CreateWindow(options)
                         toggled = val
                         if ToggleObj.UpdateAnim then ToggleObj.UpdateAnim() end
                         Library.Unsaved = true
-                        callback(val)
+                        quietCallback(val)
                     end
                 end
                 local Btn = Instance.new("TextButton")
@@ -3760,14 +3802,14 @@ function Library:CreateWindow(options)
                     end
                 end
                 ToggleObj.UpdateAnim = ToggleAnim
-                local function SetToggled(state)
+                local function SetToggled(state, quiet)
                     if toggled == state then return end
                     toggled = state
                     Library.Unsaved = true
                     ToggleAnim()
-                    callback(toggled)
+                    if quiet then quietCallback(toggled) else callback(toggled) end
                 end
-                ToggleObj.Set = function(_, state) SetToggled(state and true or false) end
+                ToggleObj.Set = function(_, state) SetToggled(state and true or false, true) end
                 if bindable and not IsTouchOnly() then
                 local bindName = text
                 if Library.Binds[bindName] then bindName = text .. " (" .. STitle.Text .. ")" end
