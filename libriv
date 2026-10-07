@@ -659,6 +659,69 @@ local function GetBaseScale()
     end
     return 1
 end
+Library.Logs = {}
+Library.LogLimit = 200
+local LogLevels = {Info = true, Warning = true, Error = true}
+local LogListeners = {}
+local function LogColor(level)
+    if level == "Warning" then return Color3.fromHex("#ffc23d") end
+    if level == "Error" then return Theme.Danger end
+    return Theme.Text
+end
+function Library:Log(level, message)
+    if not LogLevels[level] then level = "Info" end
+    local entry = {Level = level, Text = tostring(message), Time = os.date("%H:%M:%S")}
+    table.insert(Library.Logs, entry)
+    if #Library.Logs > Library.LogLimit then table.remove(Library.Logs, 1) end
+    for _, fn in ipairs(LogListeners) do pcall(fn, entry) end
+    return entry
+end
+function Library:Info(message) return Library:Log("Info", message) end
+function Library:Warn(message) return Library:Log("Warning", message) end
+function Library:Error(message) return Library:Log("Error", message) end
+function Library:ClearLogs()
+    table.clear(Library.Logs)
+    for _, fn in ipairs(LogListeners) do pcall(fn, nil) end
+end
+function Library:Try(name, fn, ...)
+    if type(name) == "function" then return Library:Try("Script", name, fn, ...) end
+    local res = table.pack(pcall(fn, ...))
+    if not res[1] then Library:Log("Error", tostring(name) .. ": " .. tostring(res[2])) end
+    return table.unpack(res, 1, res.n)
+end
+local Capturing = false
+local CaptureConn
+local CaptureLevels = {
+    [Enum.MessageType.MessageOutput] = "Info",
+    [Enum.MessageType.MessageInfo] = "Info",
+    [Enum.MessageType.MessageWarning] = "Warning",
+    [Enum.MessageType.MessageError] = "Error"
+}
+function Library:CaptureOutput(enabled, includePrints)
+    if CaptureConn then CaptureConn:Disconnect() CaptureConn = nil end
+    Capturing = enabled and true or false
+    if not Capturing then return end
+    CaptureConn = game:GetService("LogService").MessageOut:Connect(function(msg, msgType)
+        local level = CaptureLevels[msgType]
+        if not level or (level == "Info" and includePrints == false) then return end
+        if msg:find("^Stack Begin") or msg:find("^Stack End") or msg:find("^Script '.-', Line %d+") then return end
+        Library:Log(level, msg)
+    end)
+    table.insert(Library.Connections, CaptureConn)
+end
+local function WrapCallback(name, callback, isToggle)
+    callback = callback or function() end
+    return function(...)
+        if isToggle then
+            Library:Log("Info", tostring(name) .. ((...) and " enabled" or " disabled"))
+        end
+        local ok, err = pcall(callback, ...)
+        if not ok then
+            Library:Log("Error", tostring(name) .. ": " .. tostring(err))
+            if not Capturing then warn(err) end
+        end
+    end
+end
 function Library:Unload()
     for _, conn in ipairs(Library.Connections) do pcall(function() conn:Disconnect() end) end
     Library.Connections = {}
@@ -674,6 +737,7 @@ function Library:Unload()
     Library.BindOrder = {}
     Library.SearchIndex = {}
     table.clear(ThemeHooks)
+    table.clear(LogListeners)
     for _, g in pairs(GetParent():GetChildren()) do
         if g.Name == "PrismaMini" or g.Name == Config.Name or g.Name == "PrismaKeybinds" or g.Name == "PrismaLoader" or g.Name == "PhantomNotifications" or g.Name == "PhantomWatermark" or g.Name == "PhantomTooltip" or g.Name == "PhantomMiniButton" then
             pcall(function() g:Destroy() end)
@@ -833,6 +897,9 @@ local function ApplyTooltip(guiObj, text)
     table.insert(Library.Connections, c3)
 end
 function Library:Notify(title, text, duration)
+    local lowered = string.lower(tostring(title) .. " " .. tostring(text))
+    local level = (lowered:find("error") or lowered:find("fail")) and "Error" or lowered:find("warn") and "Warning" or "Info"
+    Library:Log(level, tostring(title) .. ": " .. tostring(text))
     local NotifGui = GetParent():FindFirstChild("PhantomNotifications")
     if not NotifGui then
         NotifGui = Instance.new("ScreenGui")
@@ -2314,7 +2381,7 @@ function Library:CreateWindow(options)
             local s = Stroke(Btn, Theme.Stroke, 1, 0.5)
             local bc1 = Btn.MouseEnter:Connect(function() Tween(Btn, {BackgroundColor3 = Theme.Stroke}) Tween(s, {Color = Theme.Accent}) end)
             local bc2 = Btn.MouseLeave:Connect(function() Tween(Btn, {BackgroundColor3 = Theme.Container}) Tween(s, {Color = Theme.Stroke}) end)
-            local bc3 = Btn.MouseButton1Click:Connect(callback)
+            local bc3 = Btn.MouseButton1Click:Connect(WrapCallback(text, callback, false))
             table.insert(Library.Connections, bc1)
             table.insert(Library.Connections, bc2)
             table.insert(Library.Connections, bc3)
@@ -2322,6 +2389,7 @@ function Library:CreateWindow(options)
             return Btn
         end
         function Section:Toggle(text, flag, default, tooltipText, callback)
+            callback = WrapCallback(text, callback, true)
             Library.Defaults[flag] = default or false
             local toggled = Library.Flags[flag]
             if toggled == nil then
@@ -3130,6 +3198,215 @@ function Library:CreateWindow(options)
         table.insert(Library.Connections, c24)
         table.insert(Library.Connections, c25)
         table.insert(Library.Connections, c26)
+        local ConsoleSec = WindowObj:CreateRawSection("Console", SetPage)
+        local ConsoleContent = ConsoleSec.Container:FindFirstChild("Content")
+        local logRows = {}
+        local rowOrder = 0
+        local consoleOpen = true
+        local HEADER_H, PANEL_H = 30, 232
+        local LevelNames = {Info = "Info", Warning = "Warn", Error = "Error"}
+        local function EscapeRich(str)
+            return (str:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
+        end
+        local Panel = Instance.new("Frame")
+        Panel.Name = "ConsolePanel"
+        Panel.Size = UDim2.new(1, 0, 0, PANEL_H)
+        Panel.BackgroundColor3 = Theme.Background
+        Panel.BorderSizePixel = 0
+        Panel.ClipsDescendants = true
+        Panel.Parent = ConsoleContent
+        Corner(Panel, 4)
+        Stroke(Panel, Theme.Stroke, 1, 0)
+        local Header = Instance.new("TextButton")
+        Header.Name = "Header"
+        Header.Size = UDim2.new(1, 0, 0, HEADER_H)
+        Header.BackgroundColor3 = Theme.Topbar
+        Header.BorderSizePixel = 0
+        Header.AutoButtonColor = false
+        Header.Text = ""
+        Header.Parent = Panel
+        Corner(Header, 4)
+        local HeaderFill = Instance.new("Frame")
+        HeaderFill.Size = UDim2.new(1, 0, 0, 6)
+        HeaderFill.Position = UDim2.new(0, 0, 1, -6)
+        HeaderFill.BackgroundColor3 = Theme.Topbar
+        HeaderFill.BorderSizePixel = 0
+        HeaderFill.Parent = Header
+        local Divider = Instance.new("Frame")
+        Divider.Size = UDim2.new(1, 0, 0, 1)
+        Divider.Position = UDim2.new(0, 0, 0, HEADER_H)
+        Divider.BackgroundColor3 = Theme.Stroke
+        Divider.BorderSizePixel = 0
+        Divider.Parent = Panel
+        local TitleRow = Instance.new("Frame")
+        TitleRow.Size = UDim2.new(0.5, 0, 1, 0)
+        TitleRow.Position = UDim2.new(0, 10, 0, 0)
+        TitleRow.BackgroundTransparency = 1
+        TitleRow.Parent = Header
+        local TitleList = Instance.new("UIListLayout")
+        TitleList.FillDirection = Enum.FillDirection.Horizontal
+        TitleList.VerticalAlignment = Enum.VerticalAlignment.Center
+        TitleList.SortOrder = Enum.SortOrder.LayoutOrder
+        TitleList.Padding = UDim.new(0, 6)
+        TitleList.Parent = TitleRow
+        local HeaderTitle = Instance.new("TextLabel")
+        HeaderTitle.AutomaticSize = Enum.AutomaticSize.X
+        HeaderTitle.Size = UDim2.new(0, 0, 1, 0)
+        HeaderTitle.BackgroundTransparency = 1
+        HeaderTitle.Text = "Output"
+        HeaderTitle.Font = Config.FontBold
+        HeaderTitle.TextSize = 13
+        HeaderTitle.TextColor3 = Theme.Text
+        HeaderTitle.LayoutOrder = 1
+        HeaderTitle.Parent = TitleRow
+        local CountLabel = Instance.new("TextLabel")
+        CountLabel.AutomaticSize = Enum.AutomaticSize.X
+        CountLabel.Size = UDim2.new(0, 0, 1, 0)
+        CountLabel.BackgroundTransparency = 1
+        CountLabel.Text = "0"
+        CountLabel.Font = Config.FontMain
+        CountLabel.TextSize = 12
+        CountLabel.TextColor3 = Theme.TextDark
+        CountLabel.LayoutOrder = 2
+        CountLabel.Parent = TitleRow
+        local Arrow = Instance.new("ImageLabel")
+        Arrow.Image = "rbxassetid://10709790948"
+        Arrow.Size = UDim2.new(0, 16, 0, 16)
+        Arrow.Position = UDim2.new(1, -10, 0.5, 0)
+        Arrow.AnchorPoint = Vector2.new(1, 0.5)
+        Arrow.BackgroundTransparency = 1
+        Arrow.ImageColor3 = Theme.TextDark
+        Arrow.Parent = Header
+        local function LinkButton(text, xOffset)
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(0, 36, 1, 0)
+            btn.Position = UDim2.new(1, xOffset, 0, 0)
+            btn.AnchorPoint = Vector2.new(1, 0)
+            btn.BackgroundTransparency = 1
+            btn.Text = text
+            btn.Font = Config.FontBold
+            btn.TextSize = 12
+            btn.TextColor3 = Theme.TextDark
+            btn.TextXAlignment = Enum.TextXAlignment.Right
+            btn.AutoButtonColor = false
+            btn.Parent = Header
+            table.insert(Library.Connections, btn.MouseEnter:Connect(function() Tween(btn, {TextColor3 = Theme.Text}, 0.15) end))
+            table.insert(Library.Connections, btn.MouseLeave:Connect(function() Tween(btn, {TextColor3 = Theme.TextDark}, 0.15) end))
+            return btn
+        end
+        local ClearBtn = LinkButton("Clear", -36)
+        local CopyBtn = LinkButton("Copy", -80)
+        local LogBox = Instance.new("ScrollingFrame")
+        LogBox.Size = UDim2.new(1, 0, 1, -(HEADER_H + 1))
+        LogBox.Position = UDim2.new(0, 0, 0, HEADER_H + 1)
+        LogBox.BackgroundColor3 = Theme.Background
+        LogBox.BorderSizePixel = 0
+        LogBox.ScrollBarThickness = 2
+        LogBox.ScrollBarImageColor3 = Theme.Accent
+        LogBox.ScrollBarImageTransparency = 0
+        LogBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        LogBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+        LogBox.ScrollingDirection = Enum.ScrollingDirection.Y
+        LogBox.Parent = Panel
+        RegisterTheme(LogBox, "ScrollBar")
+        Corner(LogBox, 4)
+        local LogPad = Instance.new("UIPadding")
+        LogPad.PaddingTop = UDim.new(0, 6)
+        LogPad.PaddingBottom = UDim.new(0, 6)
+        LogPad.PaddingLeft = UDim.new(0, 10)
+        LogPad.PaddingRight = UDim.new(0, 10)
+        LogPad.Parent = LogBox
+        local LogList = Instance.new("UIListLayout")
+        LogList.SortOrder = Enum.SortOrder.LayoutOrder
+        LogList.Padding = UDim.new(0, 3)
+        LogList.Parent = LogBox
+        local EmptyLabel = Instance.new("TextLabel")
+        EmptyLabel.Size = UDim2.new(1, 0, 0, 18)
+        EmptyLabel.BackgroundTransparency = 1
+        EmptyLabel.Text = "No output yet"
+        EmptyLabel.Font = Config.FontMain
+        EmptyLabel.TextSize = 13
+        EmptyLabel.TextColor3 = Theme.TextDark
+        EmptyLabel.TextXAlignment = Enum.TextXAlignment.Left
+        EmptyLabel.LayoutOrder = 0
+        EmptyLabel.Parent = LogBox
+        local function UpdateCount()
+            CountLabel.Text = tostring(#Library.Logs)
+        end
+        local function AddLogRow(entry)
+            rowOrder = rowOrder + 1
+            local Line = Instance.new("TextLabel")
+            Line.Name = "LogLine"
+            Line.Size = UDim2.new(1, 0, 0, 0)
+            Line.AutomaticSize = Enum.AutomaticSize.Y
+            Line.BackgroundTransparency = 1
+            Line.RichText = true
+            Line.Text = '<font color="#' .. Theme.TextDark:ToHex() .. '">[' .. entry.Time .. ']</font> ['
+                .. LevelNames[entry.Level] .. '] ' .. EscapeRich(entry.Text)
+            Line.Font = Config.FontMain
+            Line.TextSize = 13
+            Line.TextColor3 = LogColor(entry.Level)
+            Line.TextWrapped = true
+            Line.TextXAlignment = Enum.TextXAlignment.Left
+            Line.TextYAlignment = Enum.TextYAlignment.Top
+            Line.LayoutOrder = rowOrder
+            Line.Parent = LogBox
+            table.insert(logRows, Line)
+            if #logRows > Library.LogLimit then
+                local old = table.remove(logRows, 1)
+                if old then old:Destroy() end
+            end
+            EmptyLabel.Visible = false
+            UpdateCount()
+            task.defer(function()
+                if LogBox.Parent then LogBox.CanvasPosition = Vector2.new(0, LogBox.AbsoluteCanvasSize.Y) end
+            end)
+        end
+        local function RebuildConsole()
+            for _, row in ipairs(logRows) do row:Destroy() end
+            table.clear(logRows)
+            for _, entry in ipairs(Library.Logs) do AddLogRow(entry) end
+            EmptyLabel.Visible = #logRows == 0
+            UpdateCount()
+        end
+        local function SetConsoleOpen(open)
+            consoleOpen = open
+            if open then
+                HeaderFill.Visible = true
+                Divider.Visible = true
+            end
+            Tween(Arrow, {Rotation = open and 0 or -90}, 0.2)
+            local t = Tween(Panel, {Size = UDim2.new(1, 0, 0, open and PANEL_H or HEADER_H)}, 0.25)
+            if not open and t then
+                t.Completed:Connect(function()
+                    if not consoleOpen then
+                        HeaderFill.Visible = false
+                        Divider.Visible = false
+                    end
+                end)
+            end
+        end
+        table.insert(Library.Connections, Header.MouseButton1Click:Connect(function()
+            SetConsoleOpen(not consoleOpen)
+        end))
+        table.insert(Library.Connections, Header.MouseEnter:Connect(function() Tween(Arrow, {ImageColor3 = Theme.Text}, 0.15) end))
+        table.insert(Library.Connections, Header.MouseLeave:Connect(function() Tween(Arrow, {ImageColor3 = Theme.TextDark}, 0.15) end))
+        table.insert(Library.Connections, CopyBtn.MouseButton1Click:Connect(function()
+            local lines = {}
+            for _, entry in ipairs(Library.Logs) do
+                table.insert(lines, "[" .. entry.Time .. "] [" .. LevelNames[entry.Level] .. "] " .. entry.Text)
+            end
+            local ok = pcall(function() setclipboard(table.concat(lines, "\n")) end)
+            if ok then Library:Notify("Console", "Logs copied", 2) else Library:Notify("Console", "Clipboard not supported", 2) end
+        end))
+        table.insert(Library.Connections, ClearBtn.MouseButton1Click:Connect(function()
+            Library:ClearLogs()
+        end))
+        table.insert(LogListeners, function(entry)
+            if entry == nil then RebuildConsole() else AddLogRow(entry) end
+        end)
+        OnThemeChanged(RebuildConsole)
+        RebuildConsole()
     end
     PopulateSettings()
     function WindowObj:Tab(name, iconId)
@@ -3385,6 +3662,7 @@ function Library:CreateWindow(options)
                 UpdateHeight()
             end
             function Section:Toggle(text, flag, default, tooltipText, callback, bindable)
+                callback = WrapCallback(text, callback, true)
                 Library.Defaults[flag] = default or false
                 local toggled = Library.Flags[flag]
                 if toggled == nil then
@@ -3967,7 +4245,7 @@ function Library:CreateWindow(options)
                 local s = Stroke(Btn, Theme.Stroke, 1, 0.5)
                 local c1 = Btn.MouseEnter:Connect(function() Tween(Btn, {BackgroundColor3 = Theme.Stroke}) Tween(s, {Color = Theme.Accent}) end)
                 local c2 = Btn.MouseLeave:Connect(function() Tween(Btn, {BackgroundColor3 = Theme.Container}) Tween(s, {Color = Theme.Stroke}) end)
-                local c3 = Btn.MouseButton1Click:Connect(callback)
+                local c3 = Btn.MouseButton1Click:Connect(WrapCallback(text, callback, false))
                 table.insert(Library.Connections, c1)
                 table.insert(Library.Connections, c2)
                 table.insert(Library.Connections, c3)
