@@ -666,7 +666,7 @@ local LogListeners = {}
 local function LogColor(level)
     if level == "Warning" then return Color3.fromHex("#ffc23d") end
     if level == "Error" then return Theme.Danger end
-    return Theme.Accent
+    return Theme.Text
 end
 function Library:Log(level, message)
     if not LogLevels[level] then level = "Info" end
@@ -3174,51 +3174,30 @@ function Library:CreateWindow(options)
         table.insert(Library.Connections, c26)
         local ConsoleSec = WindowObj:CreateRawSection("Console", SetPage)
         local ConsoleContent = ConsoleSec.Container:FindFirstChild("Content")
-        local consoleFilter = "All"
         local logRows = {}
         local rowOrder = 0
-        local function SmallButton(parent, text, width, order)
+        local LevelNames = {Info = "Info", Warning = "Warn", Error = "Error"}
+        local function LinkButton(text, xOffset)
             local b = Instance.new("TextButton")
-            b.Size = UDim2.new(0, width, 1, 0)
-            b.BackgroundColor3 = Theme.Container
+            b.Size = UDim2.new(0, 40, 0, 30)
+            b.Position = UDim2.new(1, xOffset, 0, 0)
+            b.AnchorPoint = Vector2.new(1, 0)
+            b.BackgroundTransparency = 1
             b.Text = text
-            b.Font = Config.FontMain
+            b.Font = Config.FontBold
             b.TextSize = 12
             b.TextColor3 = Theme.TextDark
+            b.TextXAlignment = Enum.TextXAlignment.Right
             b.AutoButtonColor = false
-            b.LayoutOrder = order or 0
-            b.Parent = parent
-            Corner(b, 4)
-            return b, Stroke(b, Theme.Stroke, 1, 0.5)
+            b.Parent = ConsoleSec.Container
+            table.insert(Library.Connections, b.MouseEnter:Connect(function() Tween(b, {TextColor3 = Theme.Text}, 0.15) end))
+            table.insert(Library.Connections, b.MouseLeave:Connect(function() Tween(b, {TextColor3 = Theme.TextDark}, 0.15) end))
+            return b
         end
-        local TopRow = Instance.new("Frame")
-        TopRow.Size = UDim2.new(1, 0, 0, 24)
-        TopRow.BackgroundTransparency = 1
-        TopRow.LayoutOrder = 1
-        TopRow.Parent = ConsoleContent
-        local FilterRow = Instance.new("Frame")
-        FilterRow.Size = UDim2.new(1, -130, 1, 0)
-        FilterRow.BackgroundTransparency = 1
-        FilterRow.Parent = TopRow
-        local FilterLayout = Instance.new("UIListLayout")
-        FilterLayout.FillDirection = Enum.FillDirection.Horizontal
-        FilterLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        FilterLayout.Padding = UDim.new(0, 6)
-        FilterLayout.Parent = FilterRow
-        local ActionRow = Instance.new("Frame")
-        ActionRow.Size = UDim2.new(0, 124, 1, 0)
-        ActionRow.Position = UDim2.new(1, 0, 0, 0)
-        ActionRow.AnchorPoint = Vector2.new(1, 0)
-        ActionRow.BackgroundTransparency = 1
-        ActionRow.Parent = TopRow
-        local ActionLayout = Instance.new("UIListLayout")
-        ActionLayout.FillDirection = Enum.FillDirection.Horizontal
-        ActionLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-        ActionLayout.SortOrder = Enum.SortOrder.LayoutOrder
-        ActionLayout.Padding = UDim.new(0, 6)
-        ActionLayout.Parent = ActionRow
+        local ClearBtn = LinkButton("Clear", -10)
+        local CopyBtn = LinkButton("Copy", -56)
         local LogBox = Instance.new("ScrollingFrame")
-        LogBox.Size = UDim2.new(1, 0, 0, 190)
+        LogBox.Size = UDim2.new(1, 0, 0, 200)
         LogBox.BackgroundColor3 = Theme.Background
         LogBox.BorderSizePixel = 0
         LogBox.ScrollBarThickness = 2
@@ -3226,7 +3205,6 @@ function Library:CreateWindow(options)
         LogBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
         LogBox.CanvasSize = UDim2.new(0, 0, 0, 0)
         LogBox.ScrollingDirection = Enum.ScrollingDirection.Y
-        LogBox.LayoutOrder = 2
         LogBox.Parent = ConsoleContent
         RegisterTheme(LogBox, "ScrollBar")
         Corner(LogBox, 4)
@@ -3239,73 +3217,43 @@ function Library:CreateWindow(options)
         LogPad.Parent = LogBox
         local LogList = Instance.new("UIListLayout")
         LogList.SortOrder = Enum.SortOrder.LayoutOrder
-        LogList.Padding = UDim.new(0, 3)
+        LogList.Padding = UDim.new(0, 2)
         LogList.Parent = LogBox
         local EmptyLabel = Instance.new("TextLabel")
-        EmptyLabel.Size = UDim2.new(1, 0, 0, 170)
+        EmptyLabel.Size = UDim2.new(1, 0, 0, 18)
         EmptyLabel.BackgroundTransparency = 1
         EmptyLabel.Text = "No logs yet"
         EmptyLabel.Font = Config.FontMain
         EmptyLabel.TextSize = 13
         EmptyLabel.TextColor3 = Theme.TextDark
+        EmptyLabel.TextXAlignment = Enum.TextXAlignment.Left
         EmptyLabel.LayoutOrder = 0
         EmptyLabel.Parent = LogBox
-        local function ScrollToBottom()
-            task.defer(function()
-                if LogBox.Parent then LogBox.CanvasPosition = Vector2.new(0, LogBox.AbsoluteCanvasSize.Y) end
-            end)
-        end
         local function AddLogRow(entry)
-            if consoleFilter ~= "All" and entry.Level ~= consoleFilter then return end
             rowOrder = rowOrder + 1
-            local Row = Instance.new("Frame")
-            Row.Name = "LogRow"
-            Row.Size = UDim2.new(1, 0, 0, 0)
-            Row.AutomaticSize = Enum.AutomaticSize.Y
-            Row.BackgroundTransparency = 1
-            Row.LayoutOrder = rowOrder
-            Row.Parent = LogBox
-            local TimeLbl = Instance.new("TextLabel")
-            TimeLbl.Size = UDim2.new(0, 58, 0, 18)
-            TimeLbl.BackgroundTransparency = 1
-            TimeLbl.Text = entry.Time
-            TimeLbl.Font = Enum.Font.Code
-            TimeLbl.TextSize = 12
-            TimeLbl.TextColor3 = Theme.TextDark
-            TimeLbl.TextXAlignment = Enum.TextXAlignment.Left
-            TimeLbl.Parent = Row
-            local color = LogColor(entry.Level)
-            local Tag = Instance.new("TextLabel")
-            Tag.Size = UDim2.new(0, 56, 0, 16)
-            Tag.Position = UDim2.new(0, 60, 0, 1)
-            Tag.BackgroundColor3 = color
-            Tag.BackgroundTransparency = 0.85
-            Tag.Text = string.upper(entry.Level)
-            Tag.Font = Config.FontBold
-            Tag.TextSize = 10
-            Tag.TextColor3 = color
-            Tag.Parent = Row
-            Corner(Tag, 3)
-            local Msg = Instance.new("TextLabel")
-            Msg.Size = UDim2.new(1, -124, 0, 18)
-            Msg.Position = UDim2.new(0, 124, 0, 0)
-            Msg.AutomaticSize = Enum.AutomaticSize.Y
-            Msg.BackgroundTransparency = 1
-            Msg.Text = entry.Text
-            Msg.Font = Config.FontMain
-            Msg.TextSize = 13
-            Msg.TextColor3 = Theme.Text
-            Msg.TextWrapped = true
-            Msg.TextXAlignment = Enum.TextXAlignment.Left
-            Msg.TextYAlignment = Enum.TextYAlignment.Center
-            Msg.Parent = Row
-            table.insert(logRows, Row)
+            local Line = Instance.new("TextLabel")
+            Line.Name = "LogLine"
+            Line.Size = UDim2.new(1, 0, 0, 0)
+            Line.AutomaticSize = Enum.AutomaticSize.Y
+            Line.BackgroundTransparency = 1
+            Line.Text = "[" .. entry.Time .. "] [" .. LevelNames[entry.Level] .. "] " .. entry.Text
+            Line.Font = Config.FontMain
+            Line.TextSize = 13
+            Line.TextColor3 = LogColor(entry.Level)
+            Line.TextWrapped = true
+            Line.TextXAlignment = Enum.TextXAlignment.Left
+            Line.TextYAlignment = Enum.TextYAlignment.Top
+            Line.LayoutOrder = rowOrder
+            Line.Parent = LogBox
+            table.insert(logRows, Line)
             if #logRows > Library.LogLimit then
                 local old = table.remove(logRows, 1)
                 if old then old:Destroy() end
             end
             EmptyLabel.Visible = false
-            ScrollToBottom()
+            task.defer(function()
+                if LogBox.Parent then LogBox.CanvasPosition = Vector2.new(0, LogBox.AbsoluteCanvasSize.Y) end
+            end)
         end
         local function RebuildConsole()
             for _, row in ipairs(logRows) do row:Destroy() end
@@ -3313,36 +3261,10 @@ function Library:CreateWindow(options)
             for _, entry in ipairs(Library.Logs) do AddLogRow(entry) end
             EmptyLabel.Visible = #logRows == 0
         end
-        local FilterBtns = {}
-        local function RefreshFilterBtns()
-            for name, fb in pairs(FilterBtns) do
-                local active = name == consoleFilter
-                fb.Btn.TextColor3 = active and Theme.Text or Theme.TextDark
-                fb.Btn.BackgroundColor3 = active and Theme.Stroke or Theme.Container
-                fb.Stroke.Color = active and Theme.Accent or Theme.Stroke
-            end
-        end
-        for i, name in ipairs({"All", "Info", "Warning", "Error"}) do
-            local fb, fs = SmallButton(FilterRow, name, name == "Warning" and 66 or 48, i)
-            FilterBtns[name] = {Btn = fb, Stroke = fs}
-            local fc = fb.MouseButton1Click:Connect(function()
-                consoleFilter = name
-                RefreshFilterBtns()
-                RebuildConsole()
-            end)
-            table.insert(Library.Connections, fc)
-        end
-        local CopyBtn, CopyStroke = SmallButton(ActionRow, "Copy", 58, 1)
-        local ClearBtn, ClearStroke = SmallButton(ActionRow, "Clear", 58, 2)
-        for _, pair in ipairs({{CopyBtn, CopyStroke}, {ClearBtn, ClearStroke}}) do
-            local b, st = pair[1], pair[2]
-            table.insert(Library.Connections, b.MouseEnter:Connect(function() Tween(b, {BackgroundColor3 = Theme.Stroke, TextColor3 = Theme.Text}) Tween(st, {Color = Theme.Accent}) end))
-            table.insert(Library.Connections, b.MouseLeave:Connect(function() Tween(b, {BackgroundColor3 = Theme.Container, TextColor3 = Theme.TextDark}) Tween(st, {Color = Theme.Stroke}) end))
-        end
         table.insert(Library.Connections, CopyBtn.MouseButton1Click:Connect(function()
             local lines = {}
             for _, entry in ipairs(Library.Logs) do
-                table.insert(lines, "[" .. entry.Time .. "] [" .. entry.Level .. "] " .. entry.Text)
+                table.insert(lines, "[" .. entry.Time .. "] [" .. LevelNames[entry.Level] .. "] " .. entry.Text)
             end
             local ok = pcall(function() setclipboard(table.concat(lines, "\n")) end)
             if ok then Library:Notify("Console", "Logs copied", 2) else Library:Notify("Console", "Clipboard not supported", 2) end
@@ -3353,11 +3275,7 @@ function Library:CreateWindow(options)
         table.insert(LogListeners, function(entry)
             if entry == nil then RebuildConsole() else AddLogRow(entry) end
         end)
-        OnThemeChanged(function()
-            RefreshFilterBtns()
-            RebuildConsole()
-        end)
-        RefreshFilterBtns()
+        OnThemeChanged(RebuildConsole)
         RebuildConsole()
     end
     PopulateSettings()
