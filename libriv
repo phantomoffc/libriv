@@ -44,7 +44,7 @@ local Library = {
 	DecorEnabled = true,
 	Animations = true,
 	CustomAccent = nil,
-	Rounding = "Default",
+	Rounding = "Sharp",
 	TooltipsEnabled = true,
 	NotifySide = "Bottom right",
 	MiniButtonEnabled = true,
@@ -60,12 +60,12 @@ end
 local Config = {
 	Name = "PHANTOM HUB",
 	Brand = "Phantom Softworks",
-	Theme = "Christmas",
+	Theme = "Main",
 	Keybind = Enum.KeyCode.LeftControl,
 	HideKeybind = Enum.KeyCode.Unknown,
 	Duration = 0.25,
-	FontMain = Enum.Font.GothamMedium,
-	FontBold = Enum.Font.GothamMedium,
+	FontMain = Enum.Font.Code,
+	FontBold = Enum.Font.Code,
 	ConfigFolder = "PhantomHub",
 }
 
@@ -157,19 +157,19 @@ local Themes = {
 		TextDark = "#9a9a9a", TextMuted = "#5c5c5c", Accent = "#7d55ff", Accent2 = "#b18cff",
 		Text = "#ffffff",
 	},
-	-- flat grey with a muted purple accent, made for the Classic style
-	["Classic"] = T{
+	-- flat grey with a muted purple accent, made for the Main style
+	["Main"] = T{
 		BgTop = "#1e1e1e", BgBottom = "#1e1e1e", Sidebar = "#141414", Section = "#121212",
 		Container = "#191919", Card = "#3a3a3a", Stroke = "#2d2d2d",
 		Text = "#c8c8c8", TextDark = "#9a9a9a", TextMuted = "#6e6e6e", Accent = "#715d85", Accent2 = "#9a84b0",
 	},
-	["Classic Midnight"] = T{
+	["Main Midnight"] = T{
 		BgTop = "#1e1e24", BgBottom = "#1e1e24", Sidebar = "#141418", Section = "#121216",
 		Container = "#19191d", Card = "#3a3a46", Stroke = "#2d2d37",
 		Text = "#b4b4be", TextDark = "#8c8c98", TextMuted = "#64646e", Accent = "#643b9a", Accent2 = "#9370c4",
 	},
 }
-local ThemeOrder = {"Christmas", "Dark", "Darker", "Amethyst", "Aqua", "Rose", "Halloween", "Phantom Red", "Midnight", "Emerald", "Solar", "Frost", "Obsidian", "Classic", "Classic Midnight"}
+local ThemeOrder = {"Main", "Main Midnight", "Christmas", "Dark", "Darker", "Amethyst", "Aqua", "Rose", "Halloween", "Phantom Red", "Midnight", "Emerald", "Solar", "Frost", "Obsidian"}
 local ThemeKeys = {"Background", "BgTop", "BgBottom", "Sidebar", "Topbar", "Section", "Container", "Card", "Stroke", "Accent", "Accent2", "Text", "TextDark", "TextMuted", "AccentText", "Success", "Warning", "Danger"}
 for _, palette in pairs(Themes) do
 	for k, v in pairs(palette) do
@@ -230,23 +230,24 @@ local Styles = {
 		Base = {},
 
 	},
-	-- compact old-school look: sharp corners, square checkboxes, shaded controls,
-	-- value written inside the slider bar and an accent line under the top bar
-	["Classic"] = {
+	-- compact old-school look: tabs across the top over a boxed body, accent window outline,
+	-- small square checkboxes on the left, shaded controls, value inside the slider bar
+	["Main"] = {
 		Font = "Code", Rounding = "Sharp", Cards = false, CardPad = 0, CardT = 1, CardStrokeT = 1,
-		GroupPanel = true, GroupLine = false, TitleSize = 14, TitleDim = false,
+		GroupPanel = true, GroupLine = false, TitleSize = 13, TitleDim = false, HeaderH = 20,
 		StrokeT = 0, WindowT = 0, Dim = 0.45, Slider = "bar", Toggle = "check",
 		ButtonCenter = true, CenterLabels = false, Gradient = true,
 		TabIcons = false, TabPill = false, Dividers = true, FlatChrome = true, WindowGradient = false,
-		TopAccent = true, TopLogo = true, TopSize = 16, PanelStrokeT = 0, ChromeT = 0.35,
+		TopAccent = false, TopLogo = true, TopSize = 14, PanelStrokeT = 0, ChromeT = 0,
+		SideTitle = false, Footer = false, TopTabs = true, CheckLeft = true, AccentLabel = true,
 		Base = {},
 	},
 }
-local StyleOrder = {"Obsidian", "Fluent", "Classic"}
+local StyleOrder = {"Main", "Obsidian", "Fluent"}
 for _, st in pairs(Styles) do
 	for k, v in pairs(st.Base) do st.Base[k] = Color3.fromHex(v) end
 end
-Library.StyleName = "Fluent"
+Library.StyleName = "Main"
 local Style = Styles[Library.StyleName]
 local function LabelAlign()
 	return Style.CenterLabels and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left
@@ -466,7 +467,7 @@ local FontChoices = {
 	Arial = Enum.Font.Arial,
 }
 local FontOrder = {"Code", "Gotham", "Builder Sans", "Builder Sans Bold", "Ubuntu", "Source Sans", "Arial"}
-Library.FontName = "Gotham"
+Library.FontName = "Code"
 
 -- outlines created fully visible follow the style's outline strength
 local function Stroke(parent, key, transparency, thickness)
@@ -1377,6 +1378,7 @@ local function SaveInterface()
 		Tooltips = Library.TooltipsEnabled,
 		NotifySide = Library.NotifySide,
 		MiniButton = Library.MiniButtonEnabled,
+		Look = 2,
 		Colors = {},
 	}
 	for k, c in pairs(Library.CustomColors) do data.Colors[k] = c:ToHex() end
@@ -1387,6 +1389,10 @@ local function LoadInterface()
 	if not isfile(InterfacePath()) then return end
 	local ok, data = pcall(function() return HttpService:JSONDecode(readfile(InterfacePath())) end)
 	if not ok or type(data) ~= "table" then return end
+	if data.Look ~= 2 then
+		-- older save: keep keys and toggles, but start on the new Main look
+		data.Colors, data.Style, data.Font, data.Rounding, data.Theme, data.Accent = nil, nil, nil, nil, nil, nil
+	end
 	if type(data.Colors) == "table" then
 		for k, hex in pairs(data.Colors) do
 			if table.find(ThemeKeys, k) then pcall(function() Library.CustomColors[k] = Color3.fromHex(hex) end) end
@@ -2438,17 +2444,23 @@ local function CreateSectionFrame(text, parent, order)
 	Corner(Container, 4)
 	New("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Theme = {Color = "Stroke", Transparency = function() return Style.GroupPanel and (Style.PanelStrokeT or 0) or 1 end}, Parent = Container})
 	ListLayout(Container, 0)
-	local Header = New("Frame", {BackgroundTransparency = 1, LayoutOrder = 0, Theme = {Size = panel(UDim2.new(1, 0, 0, 32), UDim2.new(1, 0, 0, 26))}, Parent = Container})
+	local Header = New("Frame", {BackgroundTransparency = 1, LayoutOrder = 0, Theme = {Size = function()
+		if Style.HeaderH then return UDim2.new(1, 0, 0, Style.HeaderH) end
+		return Style.GroupPanel and UDim2.new(1, 0, 0, 32) or UDim2.new(1, 0, 0, 26)
+	end}, Parent = Container})
 	local Title = New("TextLabel", {Text = tostring(text), Size = UDim2.new(1, -20, 1, 0), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Theme = {
 		TextSize = function() return Style.TitleSize or 15 end,
 		TextColor3 = function() return Style.TitleDim and Theme.TextDark or Theme.Text end,
-		Position = panel(UDim2.fromOffset(10, 0), UDim2.fromOffset(2, 0)),
+		Position = function()
+			if Style.HeaderH then return UDim2.fromOffset(7, 1) end
+			return Style.GroupPanel and UDim2.fromOffset(10, 0) or UDim2.fromOffset(2, 0)
+		end,
 	}, Parent = Header})
 	New("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), Theme = {BackgroundColor3 = "Stroke", BackgroundTransparency = function() return Style.GroupLine and 0 or 1 end}, Parent = Header})
 	local Content = New("Frame", {Name = "Content", Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 1, Parent = Container})
 	New("UIPadding", {Theme = {
-		PaddingTop = panel(UDim.new(0, 8), UDim.new(0, 2)),
-		PaddingBottom = panel(UDim.new(0, 10), UDim.new(0, 4)),
+		PaddingTop = function() return Style.HeaderH and UDim.new(0, 2) or (Style.GroupPanel and UDim.new(0, 8) or UDim.new(0, 2)) end,
+		PaddingBottom = function() return Style.HeaderH and UDim.new(0, 9) or (Style.GroupPanel and UDim.new(0, 10) or UDim.new(0, 4)) end,
 		PaddingLeft = panel(UDim.new(0, 10), UDim.new(0, 0)),
 		PaddingRight = panel(UDim.new(0, 10), UDim.new(0, 0)),
 	}, Parent = Content})
@@ -2573,7 +2585,12 @@ local function AttachElements(Section, Content, ctx)
 		local Btn = New("TextButton", {Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1, LayoutOrder = 1, Parent = ToggleCell})
 		AddItem(text, Btn)
 		local Label = New("TextLabel", {Text = text, Size = UDim2.new(1, -42, 1, 0), TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Parent = Btn})
-		ThemeBind(Label, {TextTransparency = function() return toggled and 0 or Style.Dim end})
+		local function LabelColor() return (toggled and Style.AccentLabel) and Theme.Accent or Theme.Text end
+		ThemeBind(Label, {
+			TextTransparency = function() return toggled and 0 or Style.Dim end,
+			TextColor3 = LabelColor,
+			Position = function() return Style.CheckLeft and UDim2.fromOffset(19, 0) or UDim2.new() end,
+		})
 		local Switch = New("Frame", {Size = UDim2.fromOffset(32, 18), Position = UDim2.fromScale(1, 0), AnchorPoint = Vector2.new(1, 0), Theme = {
 			BackgroundColor3 = function() return toggled and Theme.Accent or Theme.Container end,
 			Visible = function() return Style.Toggle ~= "check" end,
@@ -2589,11 +2606,21 @@ local function AttachElements(Section, Content, ctx)
 		})
 		New("UICorner", {CornerRadius = UDim.new(1, 0), Parent = Ball})
 		-- OG checkbox
-		local Check = New("Frame", {Size = UDim2.fromOffset(18, 18), Position = UDim2.fromScale(1, 0), AnchorPoint = Vector2.new(1, 0), Theme = {BackgroundColor3 = "Background", Visible = function() return Style.Toggle == "check" end}, Parent = Btn})
+		local Check = New("Frame", {Theme = {
+			BackgroundColor3 = function() return Style.CheckLeft and Theme.Container or Theme.Background end,
+			Visible = function() return Style.Toggle == "check" end,
+			Size = function() return Style.CheckLeft and UDim2.fromOffset(11, 11) or UDim2.fromOffset(18, 18) end,
+			Position = function() return Style.CheckLeft and UDim2.new(0, 1, 0.5, 0) or UDim2.fromScale(1, 0) end,
+			AnchorPoint = function() return Style.CheckLeft and Vector2.new(0, 0.5) or Vector2.new(1, 0) end,
+		}, Parent = Btn})
 		Corner(Check, 4)
 		Stroke(Check, "Stroke", 0)
-		local CheckFill = New("Frame", {Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = toggled and 0 or 1, Theme = {BackgroundColor3 = "Accent"}, Parent = Check})
+		local CheckFill = New("Frame", {Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = toggled and 0 or 1, Theme = {
+			BackgroundColor3 = "Accent",
+			Size = function() return Style.CheckLeft and UDim2.fromScale(1, 1) or UDim2.new(1, -6, 1, -6) end,
+		}, Parent = Check})
 		Corner(CheckFill, 2)
+		New("UIGradient", {Rotation = 90, Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 196)), Theme = {Enabled = function() return Style.Gradient end}, Parent = Check})
 
 		Track(Btn.MouseEnter, function()
 			if not toggled then Tween(Label, {TextTransparency = math.min(0.15, Style.Dim)}, 0.12) end
@@ -2624,7 +2651,7 @@ local function AttachElements(Section, Content, ctx)
 			Library.Flags[flag] = toggled
 			Tween(Switch, {BackgroundColor3 = toggled and Theme.Accent or Theme.Container}, 0.2)
 			Tween(SStroke, {Color = toggled and Theme.Accent or Theme.Stroke}, 0.2)
-			Tween(Label, {TextTransparency = toggled and 0 or Style.Dim}, 0.2)
+			Tween(Label, {TextTransparency = toggled and 0 or Style.Dim, TextColor3 = LabelColor()}, 0.2)
 			Tween(CheckFill, {BackgroundTransparency = toggled and 0 or 1}, 0.15)
 			Tween(Ball, {
 				AnchorPoint = Vector2.new(toggled and 1 or 0, 0),
@@ -2686,6 +2713,7 @@ local function AttachElements(Section, Content, ctx)
 			Label.Size = UDim2.new(1, -110, 1, 0)
 
 			local KeyBtn, KeyStroke = KeyChip(Btn, {Size = UDim2.fromOffset(0, 18), Position = UDim2.new(1, -38, 0, 0), AnchorPoint = Vector2.new(1, 0)})
+			ThemeBind(KeyBtn, {Position = function() return Style.CheckLeft and UDim2.new(1, 0, 0, 0) or UDim2.new(1, -38, 0, 0) end})
 			local binding = false
 			local function RefreshKeyBtn()
 				if binding then return end
@@ -2776,6 +2804,7 @@ local function AttachElements(Section, Content, ctx)
 			Library.Flags[pinFlag] = pinned
 			Label.Size = UDim2.new(1, -110, 1, 0)
 			local PinBtn, PinStroke = KeyChip(Btn, {Size = UDim2.fromOffset(0, 18), Position = UDim2.new(1, -38, 0, 0), AnchorPoint = Vector2.new(1, 0)})
+			ThemeBind(PinBtn, {Position = function() return Style.CheckLeft and UDim2.new(1, 0, 0, 0) or UDim2.new(1, -38, 0, 0) end})
 			local function PushPin()
 				PinBtn.Text = pinned and "Pinned" or "Pin"
 				Tween(PinBtn, {TextColor3 = pinned and Theme.Accent or Theme.TextMuted}, 0.15)
@@ -3721,6 +3750,12 @@ function Library:CreateWindow(options)
 	local Compact = IsTouchOnly() or vpNow.X < 800
 	local TOP, SIDE, FOOT = 48, Compact and 160 or 215, 20
 	local IconOnly = false
+	-- Main style: short title bar, a strip of tabs, then the boxed page area under it
+	local TABH = 20
+	local function TT() return Style.TopTabs == true end
+	local function TopH() return TT() and 30 or TOP end
+	local function TabsY() return TopH() + 8 end
+	local function PagesY() return TabsY() + TABH + 1 end
 
 	local ScreenGui = New("ScreenGui", {Name = Config.Name, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 10, Parent = GetParent()})
 	Library.ScreenGui = ScreenGui
@@ -3736,22 +3771,27 @@ function Library:CreateWindow(options)
 	end
 	local Window = New("Frame", {Name = "MainWindow", Size = UDim2.fromScale(1, 1), Active = true, Theme = {BackgroundColor3 = "Background"}, Parent = Holder})
 	Corner(Window, 4)
-	Stroke(Window, "Stroke", 0)
+	local WindowStroke = Stroke(Window, "Stroke", 0)
+	ThemeBind(WindowStroke, {Color = function() return TT() and Theme.Accent or Theme.Stroke end})
+	-- second, darker frame outside the accent line (Main style)
+	local OuterFrame = New("UIStroke", {Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Theme = {Color = "Stroke", Transparency = function() return TT() and 0 or 1 end}, Parent = New("Frame", {Size = UDim2.new(1, 2, 1, 2), Position = UDim2.fromOffset(-1, -1), BackgroundTransparency = 1, ZIndex = 0, Parent = Window})})
 	Library._MainWindow = Window
 	Library._SettingsWindow = Window
 
 	------------------------------------------------------------------ topbar
-	local Topbar = New("Frame", {Size = UDim2.new(1, 0, 0, TOP), Theme = {BackgroundColor3 = "Topbar"}, Parent = Window})
+	local Topbar = New("Frame", {Theme = {BackgroundColor3 = "Topbar", Size = function() return UDim2.new(1, 0, 0, TopH()) end}, Parent = Window})
 	Corner(Topbar, 4)
 	New("Frame", {Size = UDim2.new(1, 0, 0, 4), Position = UDim2.new(0, 0, 1, -4), Theme = {BackgroundColor3 = "Topbar"}, Parent = Topbar})
-	New("Frame", {Position = UDim2.fromOffset(0, TOP), Theme = {
+	New("Frame", {Theme = {
+		Position = function() return UDim2.fromOffset(0, TopH()) end,
+		Visible = function() return not TT() end,
 		BackgroundColor3 = function() return Style.TopAccent and Theme.Accent or Theme.Stroke end,
 		BackgroundTransparency = function() return (Style.Dividers == false and not Style.TopAccent) and 1 or 0 end,
 		Size = function() return UDim2.new(1, 0, 0, Style.TopAccent and 2 or 1) end,
 	}, Parent = Window})
 	local TitleRow = New("Frame", {Size = UDim2.new(0.5, 0, 1, 0), Position = UDim2.fromOffset(14, 0), BackgroundTransparency = 1, Parent = Topbar})
 	ListLayout(TitleRow, 8, true, nil, Enum.VerticalAlignment.Center)
-	New("ImageLabel", {Image = ASSET_LOGO, Size = UDim2.fromOffset(22, 22), ScaleType = Enum.ScaleType.Fit, LayoutOrder = 1, Theme = {Visible = function() return Style.TopLogo ~= false end}, Parent = TitleRow})
+	New("ImageLabel", {Image = ASSET_LOGO, ScaleType = Enum.ScaleType.Fit, LayoutOrder = 1, Theme = {Visible = function() return Style.TopLogo ~= false end, Size = function() return TT() and UDim2.fromOffset(16, 16) or UDim2.fromOffset(22, 22) end}, Parent = TitleRow})
 	New("TextLabel", {Text = Config.Brand, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = 2, Theme = {TextSize = function() return Style.TopSize or 20 end}, Parent = TitleRow})
 
 	local function TopButton(icon, xOff, hoverKey)
@@ -3770,8 +3810,20 @@ function Library:CreateWindow(options)
 	end
 	local CloseBtn = TopButton(ASSET_CLOSE, -11, "Danger")
 	local MinBtn = TopButton(ASSET_MIN, -41, "Text")
+	-- Main style has no sidebar, so settings open from a gear in the title bar
+	local GearBtn = TopButton("", -71, "Text")
+	pcall(ApplyIcon, GearBtn:FindFirstChildOfClass("ImageLabel"), "settings")
+	ThemeBind(GearBtn, {Visible = TT})
+	ApplyTooltip(GearBtn, "Settings")
+	for _, b in ipairs({CloseBtn, MinBtn, GearBtn}) do
+		ThemeBind(b, {Size = function() return TT() and UDim2.fromOffset(22, 22) or UDim2.fromOffset(26, 26) end})
+	end
 
-	local SearchBox = New("Frame", {Size = UDim2.fromOffset(220, 26), Position = UDim2.new(1, -76, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), Theme = {BackgroundColor3 = "Container"}, Parent = Topbar})
+	local SearchBox = New("Frame", {AnchorPoint = Vector2.new(1, 0.5), Theme = {
+		BackgroundColor3 = "Container",
+		Size = function() return TT() and UDim2.fromOffset(170, 20) or UDim2.fromOffset(220, 26) end,
+		Position = function() return TT() and UDim2.new(1, -100, 0.5, 0) or UDim2.new(1, -76, 0.5, 0) end,
+	}, Parent = Topbar})
 	Corner(SearchBox, SMALL_R)
 	local SStroke = Stroke(SearchBox, "Stroke", 0)
 	IconImage(SearchBox, "search", 13, {Position = UDim2.new(0, 8, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Theme = {ImageColor3 = "TextMuted"}})
@@ -3787,26 +3839,44 @@ function Library:CreateWindow(options)
 
 	------------------------------------------------------------------ sidebar
 	local function BodyH() return TOP + 1 + (HasFooter() and (FOOT + 1) or 0) end
-	local Sidebar = New("Frame", {Position = UDim2.fromOffset(0, TOP + 1), Theme = {BackgroundColor3 = "Sidebar", Size = function() return UDim2.new(0, SIDE, 1, -BodyH()) end}, Parent = Window})
-	New("Frame", {Position = UDim2.fromOffset(SIDE, TOP + 1), Theme = {Size = function() return UDim2.new(0, 1, 1, -BodyH()) end, BackgroundColor3 = "Stroke", BackgroundTransparency = function() return Style.Dividers == false and 1 or 0 end}, Parent = Window})
+	-- in the Main style the "sidebar" becomes the tab strip across the top
+	local Sidebar = New("Frame", {Theme = {
+		BackgroundColor3 = "Sidebar",
+		Position = function() return TT() and UDim2.fromOffset(8, TabsY()) or UDim2.fromOffset(0, TOP + 1) end,
+		Size = function() return TT() and UDim2.new(1, -16, 0, TABH) or UDim2.new(0, SIDE, 1, -BodyH()) end,
+	}, Parent = Window})
+	New("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Theme = {Color = "Stroke", Transparency = function() return TT() and 0 or 1 end}, Parent = Sidebar})
+	New("Frame", {Position = UDim2.fromOffset(SIDE, TOP + 1), Theme = {Visible = function() return not TT() end, Size = function() return UDim2.new(0, 1, 1, -BodyH()) end, BackgroundColor3 = "Stroke", BackgroundTransparency = function() return Style.Dividers == false and 1 or 0 end}, Parent = Window})
 	local Clip = New("Frame", {Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ClipsDescendants = true, Parent = Sidebar})
 	local MainStack = New("Frame", {Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = Clip})
 	local SetStack = New("Frame", {Size = UDim2.fromScale(1, 1), Position = UDim2.fromScale(1, 0), BackgroundTransparency = 1, Parent = Clip})
 
 	local TabContainer = New("ScrollingFrame", {ScrollBarThickness = 0, Theme = {
-		Position = function() return Style.SideTitle and UDim2.fromOffset(0, 46) or UDim2.new() end,
-		Size = function() return Style.SideTitle and UDim2.new(1, 0, 1, -96) or UDim2.new(1, 0, 1, -50) end,
+		Position = function() return (Style.SideTitle and not TT()) and UDim2.fromOffset(0, 46) or UDim2.new() end,
+		Size = function()
+			if TT() then return UDim2.fromScale(1, 1) end
+			return Style.SideTitle and UDim2.new(1, 0, 1, -96) or UDim2.new(1, 0, 1, -50)
+		end,
 	}, Parent = MainStack})
 	-- like the old library: game name on top of the tab list, cut off with "..." when too long
 	local SideTitle = New("TextLabel", {Text = GameName, Font = Config.FontBold, TextSize = 18, Size = UDim2.new(1, -28, 0, 24), Position = UDim2.fromOffset(14, 12), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, Theme = {TextColor3 = "Accent", Visible = function() return Style.SideTitle == true end}, Parent = MainStack})
 	ApplyTooltip(SideTitle, GameName)
 	New("Frame", {Size = UDim2.new(1, -24, 0, 1), Position = UDim2.fromOffset(12, 43), Theme = {BackgroundColor3 = "Stroke", Visible = function() return Style.SideTitle == true end}, Parent = MainStack})
-	Padding(TabContainer, 8, Compact and 6 or 8, 8, Compact and 6 or 8)
-	ListLayout(TabContainer, 2)
+	local function SidePad(v) return function() return UDim.new(0, TT() and 0 or v) end end
+	ThemeBind(Padding(TabContainer, 8, 8, 8, 8), {PaddingTop = SidePad(8), PaddingBottom = SidePad(8), PaddingLeft = SidePad(Compact and 6 or 8), PaddingRight = SidePad(Compact and 6 or 8)})
+	local function StripLayout(list)
+		ThemeBind(list, {
+			Padding = function() return UDim.new(0, TT() and 0 or 2) end,
+			FillDirection = function() return TT() and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical end,
+		})
+		-- tabs share the strip evenly
+		pcall(function() ThemeBind(list, {HorizontalFlex = function() return TT() and Enum.UIFlexAlignment.Fill or Enum.UIFlexAlignment.None end}) end)
+	end
+	StripLayout(ListLayout(TabContainer, 2))
 
 	-- profile row at the bottom of the sidebar, opens settings
-	New("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -50), Theme = {BackgroundColor3 = "Stroke", BackgroundTransparency = function() return Style.Dividers == false and 1 or 0 end}, Parent = MainStack})
-	local Profile = New("TextButton", {Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 1, -43), BackgroundTransparency = 1, Theme = {BackgroundColor3 = "Container"}, Parent = MainStack})
+	New("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -50), Theme = {Visible = function() return not TT() end, BackgroundColor3 = "Stroke", BackgroundTransparency = function() return Style.Dividers == false and 1 or 0 end}, Parent = MainStack})
+	local Profile = New("TextButton", {Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 1, -43), BackgroundTransparency = 1, Theme = {BackgroundColor3 = "Container", Visible = function() return not TT() end}, Parent = MainStack})
 	Corner(Profile, SMALL_R)
 	local Avatar = New("ImageLabel", {Size = UDim2.fromOffset(24, 24), Position = UDim2.new(0, 6, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Theme = {BackgroundColor3 = "Container"}, Parent = Profile})
 	Corner(Avatar, 12)
@@ -3836,10 +3906,14 @@ function Library:CreateWindow(options)
 		Profile.Position = UDim2.new(0, 6, 1, -43)
 	end
 
-	local BackBtn = New("TextButton", {Size = UDim2.new(1, -16, 0, 30), Position = UDim2.fromOffset(8, 8), BackgroundTransparency = 1, Theme = {BackgroundColor3 = "Container"}, Parent = SetStack})
+	local BackBtn = New("TextButton", {BackgroundTransparency = 1, Theme = {
+		BackgroundColor3 = "Container",
+		Size = function() return TT() and UDim2.new(0, 104, 1, 0) or UDim2.new(1, -16, 0, 30) end,
+		Position = function() return TT() and UDim2.new() or UDim2.fromOffset(8, 8) end,
+	}, Parent = SetStack})
 	Corner(BackBtn, SMALL_R)
 	local BackArrow = New("ImageLabel", {Image = ASSET_CHEVRON, Size = UDim2.fromOffset(14, 14), Rotation = 90, Position = UDim2.new(0, 8, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Theme = {ImageColor3 = "TextDark"}, Parent = BackBtn})
-	New("TextLabel", {Text = "Settings", TextSize = 15, Size = UDim2.new(1, -34, 1, 0), Position = UDim2.fromOffset(28, 0), TextXAlignment = Enum.TextXAlignment.Left, Parent = BackBtn})
+	New("TextLabel", {Text = "Settings", Size = UDim2.new(1, -34, 1, 0), Position = UDim2.fromOffset(28, 0), TextXAlignment = Enum.TextXAlignment.Left, Theme = {TextSize = function() return TT() and 13 or 15 end}, Parent = BackBtn})
 	if IconOnly then
 		BackBtn.Size = UDim2.new(1, -12, 0, 30)
 		BackBtn.Position = UDim2.fromOffset(6, 8)
@@ -3855,10 +3929,13 @@ function Library:CreateWindow(options)
 		Tween(BackArrow, {ImageColor3 = Theme.TextDark}, 0.18)
 	end)
 	ApplyTooltip(BackBtn, "Back to the menu")
-	New("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.fromOffset(0, 46), Theme = {BackgroundColor3 = "Stroke", BackgroundTransparency = function() return Style.Dividers == false and 1 or 0 end}, Parent = SetStack})
-	local SetContainer = New("ScrollingFrame", {Size = UDim2.new(1, 0, 1, -47), Position = UDim2.fromOffset(0, 47), ScrollBarThickness = 0, Parent = SetStack})
-	Padding(SetContainer, 8, Compact and 6 or 8, 8, Compact and 6 or 8)
-	ListLayout(SetContainer, 2)
+	New("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.fromOffset(0, 46), Theme = {Visible = function() return not TT() end, BackgroundColor3 = "Stroke", BackgroundTransparency = function() return Style.Dividers == false and 1 or 0 end}, Parent = SetStack})
+	local SetContainer = New("ScrollingFrame", {ScrollBarThickness = 0, Theme = {
+		Size = function() return TT() and UDim2.new(1, -104, 1, 0) or UDim2.new(1, 0, 1, -47) end,
+		Position = function() return TT() and UDim2.fromOffset(104, 0) or UDim2.fromOffset(0, 47) end,
+	}, Parent = SetStack})
+	ThemeBind(Padding(SetContainer, 8, 8, 8, 8), {PaddingTop = SidePad(8), PaddingBottom = SidePad(8), PaddingLeft = SidePad(Compact and 6 or 8), PaddingRight = SidePad(Compact and 6 or 8)})
+	StripLayout(ListLayout(SetContainer, 2))
 
 	------------------------------------------------------------------ pages + overlays
 	-- the window itself is the theme's gradient; bars and sidebar are tinted glass over it
@@ -3875,7 +3952,13 @@ function Library:CreateWindow(options)
 			end
 		end
 	end
-	local MainPages = New("Frame", {Theme = {Size = function() return UDim2.new(1, -(SIDE + 1), 1, -BodyH()) end}, Position = UDim2.fromOffset(SIDE + 1, TOP + 1), BackgroundTransparency = 1, ClipsDescendants = true, Parent = Window})
+	local MainPages = New("Frame", {ClipsDescendants = true, Theme = {
+		Size = function() return TT() and UDim2.new(1, -16, 1, -(PagesY() + 8)) or UDim2.new(1, -(SIDE + 1), 1, -BodyH()) end,
+		Position = function() return TT() and UDim2.fromOffset(8, PagesY()) or UDim2.fromOffset(SIDE + 1, TOP + 1) end,
+		BackgroundColor3 = "Sidebar",
+		BackgroundTransparency = function() return TT() and 0 or 1 end,
+	}, Parent = Window})
+	New("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Theme = {Color = "Stroke", Transparency = function() return TT() and 0 or 1 end}, Parent = MainPages})
 
 	local Resizer = New("Frame", {Size = UDim2.fromOffset(18, 18), Position = UDim2.fromScale(1, 1), AnchorPoint = Vector2.new(1, 1), BackgroundTransparency = 1, Active = true, ZIndex = 20, Parent = Window})
 	local grip1 = DecorLine(Resizer, 5, 14, 14, 5, "TextMuted", 0, 1)
@@ -3906,7 +3989,7 @@ function Library:CreateWindow(options)
 	OnThemeChanged(RefreshDecor)
 	RefreshDecor()
 
-	local SearchResults = New("Frame", {Size = UDim2.fromOffset(300, 0), Position = UDim2.new(1, -76, 0, TOP + 4), AnchorPoint = Vector2.new(1, 0), ClipsDescendants = true, Visible = false, ZIndex = 300, Theme = {BackgroundColor3 = "Topbar"}, Parent = Window})
+	local SearchResults = New("Frame", {Size = UDim2.fromOffset(300, 0), AnchorPoint = Vector2.new(1, 0), ClipsDescendants = true, Visible = false, ZIndex = 300, Theme = {BackgroundColor3 = "Topbar", Position = function() return TT() and UDim2.new(1, -100, 0, TopH() + 4) or UDim2.new(1, -76, 0, TOP + 4) end}, Parent = Window})
 	Corner(SearchResults, 5)
 	Stroke(SearchResults, "Stroke", 0)
 	local ResultsList = New("ScrollingFrame", {Size = UDim2.fromScale(1, 1), ScrollBarThickness = 2, ZIndex = 301, Parent = SearchResults})
@@ -4065,12 +4148,14 @@ function Library:CreateWindow(options)
 		end
 	end
 	Track(Profile.MouseButton1Click, function() SetMode(true) end)
+	Track(GearBtn.MouseButton1Click, function() SetMode(not InSettings) end)
 	Track(BackBtn.MouseButton1Click, function() SetMode(false) end)
 
 	local function CreateTabButton(list, name, icon, order)
 		local active, hovered = false, false
-		local Btn = New("TextButton", {Size = UDim2.new(1, 0, 0, 38), BackgroundTransparency = 1, LayoutOrder = order, Theme = {BackgroundColor3 = "Container"}, Parent = list})
+		local Btn = New("TextButton", {BackgroundTransparency = 1, LayoutOrder = order, Theme = {BackgroundColor3 = "Container", Size = function() return TT() and UDim2.new(0, 40, 1, 0) or UDim2.new(1, 0, 0, 38) end}, Parent = list})
 		Corner(Btn, SMALL_R)
+		New("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Theme = {Color = "Stroke", Transparency = function() return TT() and 0 or 1 end}, Parent = Btn})
 		local textX = 10
 		local Ico
 		if icon then
@@ -4086,7 +4171,12 @@ function Library:CreateWindow(options)
 		local hasIcon = Ico ~= nil
 		local function ShowIcon() return hasIcon and Style.TabIcons end
 		if Ico then ThemeBind(Ico, {Visible = ShowIcon}) end
-		ThemeBind(Title, {Position = function() return UDim2.fromOffset(ShowIcon() and 40 or 14, 0) end})
+		ThemeBind(Title, {
+			Position = function() return TT() and UDim2.new() or UDim2.fromOffset(ShowIcon() and 40 or 14, 0) end,
+			Size = function() return TT() and UDim2.fromScale(1, 1) or UDim2.new(1, -((ShowIcon() and 40 or 14) + 6), 1, 0) end,
+			TextSize = function() return TT() and 13 or 16 end,
+			TextXAlignment = function() return TT() and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left end,
+		})
 		local function ActiveBg() return Style.TabPill and Theme.Section:Lerp(Theme.Accent, 0.2) or Theme.Container end
 		ThemeBind(Btn, {BackgroundColor3 = ActiveBg})
 		local function Visual(instant)
@@ -4382,7 +4472,7 @@ function Library:CreateWindow(options)
 
 		------------------------------------------------ Appearance
 		local LookSec = Appearance:Section("Look")
-		LookSec:Dropdown("Style", "UIStyle", StyleOrder, Library.StyleName, "Obsidian, Fluent or Classic. Changes the whole look instantly", function(name)
+		LookSec:Dropdown("Style", "UIStyle", StyleOrder, Library.StyleName, "Main, Obsidian or Fluent. Changes the whole look instantly", function(name)
 			if type(name) == "string" and name ~= Library.StyleName then
 				Library:SetStyle(name)
 				Library:Notify("Style", name .. " style applied", 2, "Success")
