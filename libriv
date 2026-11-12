@@ -159,8 +159,8 @@ local Themes = {
 	},
 	-- macOS-style near-black with white accents, made for the Main style
 	["Main"] = T{
-		BgTop = "#141414", BgBottom = "#101010", Sidebar = "#0b0b0b", Topbar = "#0b0b0b", Section = "#1b1b1b",
-		Container = "#242424", Card = "#3a3a3a", Stroke = "#333333",
+		BgTop = "#121212", BgBottom = "#0c0c0c", Sidebar = "#0f0f0f", Topbar = "#0f0f0f", Section = "#2c2c2c",
+		Container = "#1c1c1c", Card = "#3a3a3a", Stroke = "#333333",
 		Text = "#ececec", TextDark = "#8f8f8f", TextMuted = "#5e5e5e", Accent = "#ececec", Accent2 = "#bdbdbd",
 	},
 }
@@ -230,12 +230,12 @@ local Styles = {
 	["Main"] = {
 		Font = "Builder Sans", Rounding = "Round", Cards = false, CardPad = 0, CardT = 1, CardStrokeT = 1,
 		GroupPanel = true, GroupLine = false, TitleSize = 14, TitleDim = true, SecPad = 14,
-		StrokeT = 0, WindowT = 0.06, Dim = 0.35, Slider = "thin", Toggle = "switch",
+		StrokeT = 0, WindowT = 0.12, Dim = 0.35, Slider = "thin", Toggle = "switch",
 		ButtonCenter = false, CenterLabels = false, Gradient = false,
 		TabIcons = true, TabPill = false, Dividers = true, FlatChrome = true, WindowGradient = false,
-		TopAccent = false, TopLogo = false, TopSize = 15, PanelStrokeT = 0, ChromeT = 0.35,
+		TopAccent = false, TopLogo = false, TopSize = 15, PanelStrokeT = 0, ChromeT = 1,
 		SideTitle = false, Footer = false, MacLayout = true, MonoSwitch = true,
-		PanelT = 0.2, HideTitles = true, RowH = 30, ValueBox = true, InlineDropdown = true, PlainButtons = true,
+		PanelT = 0.62, HideTitles = true, RowH = 30, ValueBox = true, InlineDropdown = true, PlainButtons = true,
 		Base = {},
 	},
 }
@@ -1547,19 +1547,31 @@ function Library:Notify(title, text, duration, kind)
 		BackgroundTransparency = function() return math.max(Style.WindowT or 0, 0.03) end,
 	}, Parent = Slot})
 	New("UIGradient", {Rotation = 90, Theme = {Color = function() return ColorSequence.new(Theme.BgTop, Theme.BgBottom) end}, Parent = Card})
-	Corner(Card, 6)
-	Stroke(Card, function() return Theme.Stroke:Lerp(Theme[colorKey], 0.35) end, 0)
-	-- coloured edge on the left and a bar that runs out with the time
-	New("Frame", {Size = UDim2.new(0, 3, 1, 0), Theme = {BackgroundColor3 = colorKey}, Parent = Card})
-	local TimeBar = New("Frame", {Size = UDim2.new(1, 0, 0, 2), Position = UDim2.fromScale(0, 1), AnchorPoint = Vector2.new(0, 1), BackgroundTransparency = 0.3, Theme = {BackgroundColor3 = colorKey}, Parent = Card})
-	local IconBg = New("Frame", {Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(8, 10), BackgroundTransparency = 1, Theme = {BackgroundColor3 = function() return Theme.Section:Lerp(Theme[colorKey], 0.18) end}, Parent = Card})
-	Corner(IconBg, 4)
-	IconImage(IconBg, NotifyIcons[level], 16, {Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Theme = {ImageColor3 = colorKey}})
-	local Body = New("Frame", {Size = UDim2.new(1, -62, 0, 0), Position = UDim2.fromOffset(50, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Card})
-	Padding(Body, 9, 0, 12, 0)
-	ListLayout(Body, 2)
-	New("TextLabel", {Text = title, Font = Config.FontBold, TextSize = 14, Size = UDim2.new(1, 0, 0, 18), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, LayoutOrder = 1, Theme = {TextColor3 = function() return Theme.Text:Lerp(Theme[colorKey], 0.25) end}, Parent = Body})
-	New("TextLabel", {Text = text, TextSize = 13, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 2, Theme = {TextColor3 = "TextDark"}, Parent = Body})
+	-- Main gets MacLib's card: title and text, an x to close, no icon and no coloured edges.
+	-- The other styles keep the icon card with a bar along the bottom that runs out with the time.
+	local mac = Style.MacLayout == true
+	Corner(Card, mac and 10 or 6)
+	Stroke(Card, mac and "Stroke" or function() return Theme.Stroke:Lerp(Theme[colorKey], 0.35) end, 0)
+	local TimeBar
+	local Body
+	if mac then
+		Body = New("Frame", {Size = UDim2.new(1, -46, 0, 0), Position = UDim2.fromOffset(14, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Card})
+		Padding(Body, 11, 0, 13, 0)
+		ListLayout(Body, 3)
+		New("TextLabel", {Text = "×", TextSize = 18, Size = UDim2.fromOffset(20, 20), Position = UDim2.new(1, -12, 0, 10), AnchorPoint = Vector2.new(1, 0), TextTransparency = 0.3, Parent = Card})
+		New("TextLabel", {Text = title, Font = PickFont("BuilderSansBold", Config.FontBold), TextSize = 14, Size = UDim2.new(1, 0, 0, 17), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, TextTransparency = 0.1, LayoutOrder = 1, Parent = Body})
+		New("TextLabel", {Text = text, TextSize = 12, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 2, Theme = {TextColor3 = "TextDark"}, Parent = Body})
+	else
+		TimeBar = New("Frame", {Size = UDim2.new(1, 0, 0, 2), Position = UDim2.fromScale(0, 1), AnchorPoint = Vector2.new(0, 1), BackgroundTransparency = 0.3, Theme = {BackgroundColor3 = colorKey}, Parent = Card})
+		local IconBg = New("Frame", {Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(8, 10), BackgroundTransparency = 1, Theme = {BackgroundColor3 = function() return Theme.Section:Lerp(Theme[colorKey], 0.18) end}, Parent = Card})
+		Corner(IconBg, 4)
+		IconImage(IconBg, NotifyIcons[level], 16, {Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Theme = {ImageColor3 = colorKey}})
+		Body = New("Frame", {Size = UDim2.new(1, -62, 0, 0), Position = UDim2.fromOffset(50, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = Card})
+		Padding(Body, 9, 0, 12, 0)
+		ListLayout(Body, 2)
+		New("TextLabel", {Text = title, Font = Config.FontBold, TextSize = 14, Size = UDim2.new(1, 0, 0, 18), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, LayoutOrder = 1, Theme = {TextColor3 = function() return Theme.Text:Lerp(Theme[colorKey], 0.25) end}, Parent = Body})
+		New("TextLabel", {Text = text, TextSize = 13, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = 2, Theme = {TextColor3 = "TextDark"}, Parent = Body})
+	end
 
 	local closed = false
 	local function Close()
@@ -1577,7 +1589,7 @@ function Library:Notify(title, text, duration, kind)
 		if not Card.Parent then return end
 		Tween(Slot, {Size = UDim2.new(1, 0, 0, Card.AbsoluteSize.Y / nScale)}, 0.3)
 		Tween(Card, {Position = UDim2.new(0, 0, 0, 0)}, 0.5)
-		Tween(TimeBar, {Size = UDim2.new(0, 0, 0, 2)}, duration, Enum.EasingStyle.Linear)
+		if TimeBar then Tween(TimeBar, {Size = UDim2.new(0, 0, 0, 2)}, duration, Enum.EasingStyle.Linear) end
 		task.delay(duration, Close)
 	end)
 end
