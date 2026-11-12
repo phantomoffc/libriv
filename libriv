@@ -235,7 +235,7 @@ local Styles = {
 		TabIcons = true, TabPill = false, Dividers = true, FlatChrome = true, WindowGradient = false,
 		TopAccent = false, TopLogo = false, TopSize = 15, PanelStrokeT = 0, ChromeT = 1,
 		SideTitle = false, Footer = false, MacLayout = true, MonoSwitch = true,
-		PanelT = 0.62, HideTitles = true, RowH = 30, ValueBox = true, InlineDropdown = true,
+		PanelT = 0.62, HideTitles = true, RowH = 30, ValueBox = true, InlineDropdown = true, PlainButtons = true,
 		Base = {},
 	},
 }
@@ -770,6 +770,7 @@ local ASSET_MIN = "rbxassetid://10664064072"
 local ASSET_SV = "rbxassetid://4155801252"
 local ASSET_LOGO = "rbxassetid://112964043447417"
 local ASSET_GRID = "rbxassetid://18865373378"
+local ASSET_BUTTON = "rbxassetid://10709791437"
 
 local function IconImage(parent, icon, size, props)
 	props = props or {}
@@ -2593,11 +2594,28 @@ local function AttachElements(Section, Content, ctx)
 		local Btn = FlatButton(Cell(), text, 0)
 		AddItem(text, Btn)
 		-- on a card the card itself is the button look
+		local function Plain() return Style.PlainButtons == true end
 		ThemeBind(Btn, {
-			BackgroundTransparency = function() return Style.Cards and 1 or 0 end,
+			BackgroundTransparency = function() return (Style.Cards or Plain()) and 1 or 0 end,
 			TextXAlignment = function() return Style.ButtonCenter and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left end,
+			Size = function() return UDim2.new(1, 0, 0, (Plain() and Style.RowH) or CTRL_H) end,
 		})
-		ThemeBind(Btn:FindFirstChildOfClass("UIStroke"), {Transparency = function() return Style.Cards and 1 or Style.StrokeT end})
+		ThemeBind(Btn:FindFirstChildOfClass("UIStroke"), {Transparency = function() return (Style.Cards or Plain()) and 1 or Style.StrokeT end})
+		-- Main style: plain row, the text and an arrow on the right brighten on hover
+		local Arrow = New("ImageLabel", {Image = ASSET_BUTTON, Size = UDim2.fromOffset(15, 15), Position = UDim2.new(1, -2, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), ImageTransparency = 0.5, Theme = {ImageColor3 = "Text", Visible = Plain}, Parent = Btn})
+		ThemeBind(Btn, {TextTransparency = function() return Plain() and 0.3 or 0 end})
+		Track(Btn.MouseEnter, function()
+			if Plain() then
+				Tween(Btn, {TextTransparency = 0}, 0.15)
+				Tween(Arrow, {ImageTransparency = 0.15}, 0.15)
+			end
+		end)
+		Track(Btn.MouseLeave, function()
+			if Plain() then
+				Tween(Btn, {TextTransparency = 0.3}, 0.2)
+				Tween(Arrow, {ImageTransparency = 0.5}, 0.2)
+			end
+		end)
 		Track(Btn.MouseButton1Click, WrapCallback(text, callback, false))
 		ApplyTooltip(Btn, tooltipText)
 		return Btn
@@ -3809,7 +3827,7 @@ function Library:CreateWindow(options)
 	local function TT() return Style.TopTabs == true end
 	-- Main style: sidebar runs the full height, the top bar only covers the content
 	local function ML() return Style.MacLayout == true end
-	local MAC_HEAD = 92
+	local MAC_HEAD = 57
 	local function TopH() return TT() and 30 or (ML() and 56 or TOP) end
 	local function TabsY() return TopH() + 8 end
 	local function PagesY() return TabsY() + TABH + 1 end
@@ -3877,8 +3895,6 @@ function Library:CreateWindow(options)
 	local GearBtn = TopButton("", -71, "Text")
 	pcall(ApplyIcon, GearBtn:FindFirstChildOfClass("ImageLabel"), "settings")
 	ThemeBind(GearBtn, {Visible = TT})
-	ThemeBind(CloseBtn, {Visible = function() return not ML() end})
-	ThemeBind(MinBtn, {Visible = function() return not ML() end})
 	ApplyTooltip(GearBtn, "Settings")
 	for _, b in ipairs({CloseBtn, MinBtn, GearBtn}) do
 		ThemeBind(b, {Size = function() return TT() and UDim2.fromOffset(22, 22) or UDim2.fromOffset(26, 26) end})
@@ -3888,7 +3904,6 @@ function Library:CreateWindow(options)
 		BackgroundColor3 = "Container",
 		Size = function() return TT() and UDim2.fromOffset(170, 20) or UDim2.fromOffset(220, 26) end,
 		Position = function()
-			if ML() then return UDim2.new(1, -14, 0.5, 0) end
 			return TT() and UDim2.new(1, -100, 0.5, 0) or UDim2.new(1, -76, 0.5, 0)
 		end,
 	}, Parent = Topbar})
@@ -3923,27 +3938,7 @@ function Library:CreateWindow(options)
 	New("Frame", {Theme = {Visible = function() return not TT() end, Position = function() return UDim2.fromOffset(SIDE, ML() and 0 or TOP + 1) end, Size = function() return ML() and UDim2.new(0, 1, 1, 0) or UDim2.new(0, 1, 1, -BodyH()) end, BackgroundColor3 = "Stroke", BackgroundTransparency = function() return Style.Dividers == false and 1 or 0 end}, Parent = Window})
 	-- Main style sidebar head: window dots, then the hub name and game under it
 	local MacHead = New("Frame", {Size = UDim2.new(1, 0, 0, MAC_HEAD), BackgroundTransparency = 1, Active = true, Theme = {Visible = ML}, Parent = Sidebar})
-	local Dots = New("Frame", {Size = UDim2.new(1, 0, 0, 31), BackgroundTransparency = 1, Parent = MacHead})
-	Padding(Dots, 0, 0, 0, 14)
-	ListLayout(Dots, 6, true, nil, Enum.VerticalAlignment.Center)
-	local function Dot(color, order, tip)
-		local d = New("TextButton", {Size = UDim2.fromOffset(9, 9), BackgroundColor3 = color, LayoutOrder = order, Parent = Dots})
-		New("UICorner", {CornerRadius = UDim.new(1, 0), Parent = d})
-		Track(d.MouseEnter, function() Tween(d, {BackgroundTransparency = 0.25}, 0.12) end)
-		Track(d.MouseLeave, function() Tween(d, {BackgroundTransparency = 0}, 0.18) end)
-		ApplyTooltip(d, tip)
-		return d
-	end
-	local DotClose = Dot(Color3.fromRGB(250, 93, 86), 1, "Close")
-	local DotMin = Dot(Color3.fromRGB(252, 190, 57), 2, "Minimize")
-	local DotMax = Dot(Color3.fromRGB(119, 174, 94), 3, "Bigger window")
-	New("Frame", {Size = UDim2.new(1, 0, 0, 1), Position = UDim2.fromOffset(0, 31), Theme = {BackgroundColor3 = "Stroke"}, Parent = MacHead})
-	local HeadInfo = New("Frame", {Size = UDim2.new(1, -56, 0, 60), Position = UDim2.fromOffset(16, 32), BackgroundTransparency = 1, Parent = MacHead})
-	local HeadGear = New("ImageButton", {Size = UDim2.fromOffset(18, 18), Position = UDim2.new(1, -16, 0, 62), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, ImageTransparency = 0.4, Theme = {ImageColor3 = "Text"}, Parent = MacHead})
-	pcall(ApplyIcon, HeadGear, "settings")
-	Track(HeadGear.MouseEnter, function() Tween(HeadGear, {ImageTransparency = 0.1, Rotation = 60}, 0.25) end)
-	Track(HeadGear.MouseLeave, function() Tween(HeadGear, {ImageTransparency = 0.4, Rotation = 0}, 0.25) end)
-	ApplyTooltip(HeadGear, "Settings")
+	local HeadInfo = New("Frame", {Size = UDim2.new(1, -32, 0, 56), Position = UDim2.fromOffset(16, 0), BackgroundTransparency = 1, Parent = MacHead})
 	ListLayout(HeadInfo, 2, false, nil, Enum.VerticalAlignment.Center)
 	New("TextLabel", {Text = Config.Brand, Font = PickFont("BuilderSansBold", Config.FontBold), TextSize = 18, Size = UDim2.new(1, 0, 0, 20), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, TextTransparency = 0.05, LayoutOrder = 1, Parent = HeadInfo})
 	New("TextLabel", {Text = GameName, TextSize = 12, Size = UDim2.new(1, 0, 0, 14), TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, LayoutOrder = 2, Theme = {TextColor3 = "TextDark"}, Parent = HeadInfo})
@@ -4111,7 +4106,6 @@ function Library:CreateWindow(options)
 	RefreshDecor()
 
 	local SearchResults = New("Frame", {Size = UDim2.fromOffset(300, 0), AnchorPoint = Vector2.new(1, 0), ClipsDescendants = true, Visible = false, ZIndex = 300, Theme = {BackgroundColor3 = "Topbar", Position = function()
-		if ML() then return UDim2.new(1, -14, 0, TopH() + 4) end
 		return TT() and UDim2.new(1, -100, 0, TopH() + 4) or UDim2.new(1, -76, 0, TOP + 4)
 	end}, Parent = Window})
 	Corner(SearchResults, 5)
@@ -4208,24 +4202,7 @@ function Library:CreateWindow(options)
 		task.delay(0.3, function() Library:Unload() end)
 	end)
 	Track(MinBtn.MouseButton1Click, function() ShowWindow(false) end)
-	-- window dots (Main style)
-	Track(DotClose.MouseButton1Click, function()
-		ShowWindow(false)
-		task.delay(0.3, function() Library:Unload() end)
-	end)
-	Track(DotMin.MouseButton1Click, function() ShowWindow(false) end)
-	local bigSize, smallSize
-	Track(DotMax.MouseButton1Click, function()
-		if bigSize and Holder.Size == bigSize then
-			Tween(Holder, {Size = smallSize}, 0.35)
-		else
-			smallSize = Holder.Size
-			local sc = math.max(EffectiveScale(), 0.01)
-			local vp = workspace.CurrentCamera.ViewportSize
-			bigSize = UDim2.fromOffset(math.min(math.floor(vp.X / sc * 0.9), 1100), math.min(math.floor(vp.Y / sc * 0.85), 720))
-			Tween(Holder, {Size = bigSize}, 0.35)
-		end
-	end)
+
 
 	
 	local MiniGui = New("ScreenGui", {Name = "PhantomMiniButton", IgnoreGuiInset = true, ResetOnSpawn = false, Enabled = not Library.UIHidden, Parent = GetParent()})
@@ -4291,7 +4268,6 @@ function Library:CreateWindow(options)
 	end
 	Track(Profile.MouseButton1Click, function() SetMode(true) end)
 	Track(GearBtn.MouseButton1Click, function() SetMode(not InSettings) end)
-	Track(HeadGear.MouseButton1Click, function() SetMode(not InSettings) end)
 	Track(BackBtn.MouseButton1Click, function() SetMode(false) end)
 
 	local function CreateTabButton(list, name, icon, order)
